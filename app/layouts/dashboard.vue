@@ -4,23 +4,29 @@
 
 	const loading = ref(false)
 	const logOut = async () => {
+		loading.value = true
 		await supabase.auth.signOut()
 		await router.push("/")
 	}
+
+	
 </script>
 
 <template>
-	<div class="w-full h-full">
-		<div class="h-10 w-full bg-accented flex justify-end">
-			<UButton
-				:loading="loading"
-				:disabled="loading"
-				@click="logOut"
-				color="error"
-				class="m-1 cursor-pointer">
-				Log Out
-			</UButton>
-		</div>
+	<u-main>
+		<u-header>
+			<template #title>Sudent Toolbox</template>
+
+			<template #toggle>
+				<u-button
+					@click="logOut"
+					color="error"
+					:disabled="loading"
+					:loading="loading"
+					>Log Out</u-button
+				>
+			</template>
+		</u-header>
 		<slot />
-	</div>
+	</u-main>
 </template>

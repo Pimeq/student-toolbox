@@ -1,7 +1,7 @@
 <script setup lang="ts">
 	const supabase = useSupabaseClient()
 
-	const user = await supabase.auth.getUser()
+	const user = useSupabaseUser()
 </script>
 
 <template>
