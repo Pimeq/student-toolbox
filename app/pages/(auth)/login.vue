@@ -16,7 +16,7 @@
 
 			if (error) throw error
 
-			await router.push("/")
+			await router.push("/dashboard")
 		} catch (err: any) {
 			useToast().add({
 				title: "Error",

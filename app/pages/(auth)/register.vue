@@ -31,7 +31,7 @@
 			})
 
 			if (data.session) {
-				await router.push("/")
+				await router.push("/dashboard")
 				return
 			}
 
