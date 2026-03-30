@@ -1,6 +1,5 @@
 <script setup lang="ts">
 	const user = useSupabaseUser()
-	//const router = useRouter()
 
 	if (user.value) {
 		await navigateTo("/dashboard")
