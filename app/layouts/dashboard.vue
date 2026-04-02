@@ -8,25 +8,20 @@
 		await supabase.auth.signOut()
 		await router.push("/")
 	}
+	const collapsed = ref(false)
 
-	
+	const handleToggle = () => {
+		collapsed.value = !collapsed.value
+	}
+
+	defineExpose({
+		handleToggle,
+	})
 </script>
 
 <template>
-	<u-main>
-		<u-header>
-			<template #title>Sudent Toolbox</template>
-
-			<template #toggle>
-				<u-button
-					@click="logOut"
-					color="error"
-					:disabled="loading"
-					:loading="loading"
-					>Log Out</u-button
-				>
-			</template>
-		</u-header>
+	<UDashboardGroup>
+		<UDashboardSidebar collapsible />
 		<slot />
-	</u-main>
+	</UDashboardGroup>
 </template>

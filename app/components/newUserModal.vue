@@ -1,62 +1,45 @@
 <script setup lang="ts">
-	import type { TableColumn } from "@nuxt/ui/runtime/types/index.js"
-
 	const props = defineProps<{
 		show: boolean
 	}>()
 	const open = ref(props.show)
-	const client = useSupabaseClient()
 
-	const tabItems = [
-		{ label: "Join", icon: "i-heroicons-user-plus", slot: "join" },
-		{ label: "Create new", icon: "i-heroicons-plus", slot: "create" },
-	]
+	import type { StepperItem } from "@nuxt/ui"
 
-	const { data: availableGroups } = useAsyncData(async () => {
-		const { data } = await client.from("Groups").select(`
-		name,
-		owner
-		`)
-		return data
-	})
+	const items = ref<StepperItem[]>([
+		{
+			title: "Universities",
+			icon: "i-heroicons-building-office-2-solid",
+		},
+		{
+			title: "Faculties",
+			icon: "i-heroicons-academic-cap-solid",
+		},
+		{
+			title: "Courses",
+			icon: "i-heroicons-book-open-solid",
+		},
+		{
+			title: "Classes",
+			icon: "i-heroicons-users-solid",
+		},
+	])
 
-	type Group = {
-		name: string
-		owner: string
+	const stepper = useTemplateRef("stepper")
+
+	type enrollItemsType = {
+		universities: string[] | []
+		faculties: string[] | []
+		courses: string[] | []
+		classes: string[] | []
 	}
 
-	const UCheckbox = resolveComponent("UCheckbox")
-	const UBadge = resolveComponent("UBadge")
-	const columns: TableColumn<Group>[] = [
-		{
-			id: "select",
-			header: ({ table }) =>
-				h(UCheckbox, {
-					modelValue:
-						table.getIsSomePageRowsSelected() ? "indeterminate" : (
-							table.getIsAllPageRowsSelected()
-						),
-					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
-						table.toggleAllPageRowsSelected(!!value),
-					"aria-label": "Select all",
-				}),
-			cell: ({ row }) =>
-				h(UCheckbox, {
-					modelValue: row.getIsSelected(),
-					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
-						row.toggleSelected(!!value),
-					"aria-label": "Select row",
-				}),
-		},
-		{
-			accessorKey: "name",
-			header: "Name",
-		},
-		{
-			accessorKey: "owner",
-			header: "Owner",
-		},
-	]
+	const enrollItems = ref<enrollItemsType>({
+		universities: [],
+		faculties: [],
+		courses: [],
+		classes: [],
+	})
 </script>
 
 <template>
@@ -67,22 +50,34 @@
 			<UCard>
 				<template #header>
 					<h2 class="text-2xl font-bold">Welcome to the dashboard!</h2>
-					before we proceeed please join or create a group
 				</template>
-				<UTabs :items="tabItems">
-					<template #join>
-						<!-- this error is because of unupdated db types, just update the types and it'll be good -->
-						<UTable
-							:data="availableGroups ?? []"
-							:columns="columns">
-						</UTable>
-					</template>
-					<template #create>
-						<UserModalTabsAddNewGroup />
-					</template>
-				</UTabs>
+				<div class="w-full">
+					<UStepper
+						ref="stepper"
+						:items="items">
+						<template #content="{ item }">
+							<StepperUniversity
+								v-if="item.title == 'Universities'"
+								v-model:items="enrollItems.universities" />
+						</template>
+					</UStepper>
 
-				<template #footer> </template>
+					<div class="flex gap-2 justify-between mt-4">
+						<UButton
+							leading-icon="i-lucide-arrow-left"
+							:disabled="!stepper?.hasPrev"
+							@click="stepper?.prev()">
+							Prev
+						</UButton>
+
+						<UButton
+							trailing-icon="i-lucide-arrow-right"
+							:disabled="!stepper?.hasNext"
+							@click="stepper?.next()">
+							Next
+						</UButton>
+					</div>
+				</div>
 			</UCard>
 		</template>
 	</UModal>

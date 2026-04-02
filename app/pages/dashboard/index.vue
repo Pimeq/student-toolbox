@@ -14,17 +14,26 @@
 		async () => {
 			if (!user.value) return 0
 
-			const { count, error } = await supabase
-				.from("GroupMembers")
-				.select("*", { count: "exact", head: true })
-				.eq("user_id", user.value.sub)
-
+			const { data, error } = await supabase
+				.from("user_memberships")
+				.select("*")
+				.eq("user_id", user.value?.sub)
 			if (error) throw error
-			return count ?? 0
+
+			return data.length ?? 0
 		},
 	)
 </script>
 
 <template>
 	<NewUserModal :show="newUserGroupCount == 0" />
+	<UDashboardPanel>
+		<template #header>
+			<UDashboardNavbar title="Dashboard">
+				<template #leading>
+					<UDashboardSidebarCollapse />
+				</template>
+			</UDashboardNavbar>
+		</template>
+	</UDashboardPanel>
 </template>
