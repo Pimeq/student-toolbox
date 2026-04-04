@@ -39,27 +39,6 @@ export type Database = {
 	}
 	public: {
 		Tables: {
-			class_groups: {
-				Row: {
-					created_at: string
-					faculty: number
-					id: number
-					name: string
-				}
-				Insert: {
-					created_at?: string
-					faculty: number
-					id?: number
-					name: string
-				}
-				Update: {
-					created_at?: string
-					faculty?: number
-					id?: number
-					name?: string
-				}
-				Relationships: []
-			}
 			classes: {
 				Row: {
 					course_id: string
@@ -123,56 +102,12 @@ export type Database = {
 					},
 				]
 			}
-			event_scopes: {
-				Row: {
-					class_group: number | null
-					created_at: string
-					department: number | null
-					event_id: number
-					faculty: number | null
-					id: number
-					university: number | null
-				}
-				Insert: {
-					class_group?: number | null
-					created_at?: string
-					department?: number | null
-					event_id: number
-					faculty?: number | null
-					id?: number
-					university?: number | null
-				}
-				Update: {
-					class_group?: number | null
-					created_at?: string
-					department?: number | null
-					event_id?: number
-					faculty?: number | null
-					id?: number
-					university?: number | null
-				}
-				Relationships: [
-					{
-						foreignKeyName: "event_scopes_class_group_fkey"
-						columns: ["class_group"]
-						isOneToOne: false
-						referencedRelation: "class_groups"
-						referencedColumns: ["id"]
-					},
-					{
-						foreignKeyName: "event_scopes_event_id_fkey"
-						columns: ["event_id"]
-						isOneToOne: false
-						referencedRelation: "events"
-						referencedColumns: ["id"]
-					},
-				]
-			}
 			events: {
 				Row: {
 					created_at: string
 					description: string | null
 					ends_at: string | null
+					group_id: string
 					id: number
 					starts_at: string | null
 					title: string
@@ -182,6 +117,7 @@ export type Database = {
 					created_at?: string
 					description?: string | null
 					ends_at?: string | null
+					group_id?: string
 					id?: number
 					starts_at?: string | null
 					title: string
@@ -191,12 +127,21 @@ export type Database = {
 					created_at?: string
 					description?: string | null
 					ends_at?: string | null
+					group_id?: string
 					id?: number
 					starts_at?: string | null
 					title?: string
 					updated_at?: string
 				}
-				Relationships: []
+				Relationships: [
+					{
+						foreignKeyName: "events_group_id_fkey"
+						columns: ["group_id"]
+						isOneToOne: false
+						referencedRelation: "groups"
+						referencedColumns: ["id"]
+					},
+				]
 			}
 			faculties: {
 				Row: {
@@ -228,6 +173,50 @@ export type Database = {
 					},
 				]
 			}
+			files: {
+				Row: {
+					created_at: string
+					file_type: Database["public"]["Enums"]["file_type"]
+					group_id: string
+					id: string
+					mime_type: string | null
+					name: string
+					object_id: string
+					size: number | null
+					uploaded_by: string
+				}
+				Insert: {
+					created_at?: string
+					file_type: Database["public"]["Enums"]["file_type"]
+					group_id: string
+					id?: string
+					mime_type?: string | null
+					name: string
+					object_id: string
+					size?: number | null
+					uploaded_by: string
+				}
+				Update: {
+					created_at?: string
+					file_type?: Database["public"]["Enums"]["file_type"]
+					group_id?: string
+					id?: string
+					mime_type?: string | null
+					name?: string
+					object_id?: string
+					size?: number | null
+					uploaded_by?: string
+				}
+				Relationships: [
+					{
+						foreignKeyName: "files_group_id_fkey"
+						columns: ["group_id"]
+						isOneToOne: false
+						referencedRelation: "groups"
+						referencedColumns: ["id"]
+					},
+				]
+			}
 			groups: {
 				Row: {
 					created_at: string
@@ -248,6 +237,26 @@ export type Database = {
 					type?: Database["public"]["Enums"]["group_type"]
 				}
 				Relationships: []
+			}
+			personal_groups: {
+				Row: {
+					id: string
+				}
+				Insert: {
+					id: string
+				}
+				Update: {
+					id?: string
+				}
+				Relationships: [
+					{
+						foreignKeyName: "personal_groups_id_fkey"
+						columns: ["id"]
+						isOneToOne: true
+						referencedRelation: "groups"
+						referencedColumns: ["id"]
+					},
+				]
 			}
 			universities: {
 				Row: {
@@ -318,6 +327,7 @@ export type Database = {
 				Args: { p_name: string; p_university_id: string }
 				Returns: string
 			}
+			create_personal_group: { Args: { p_name: string }; Returns: string }
 			create_university: { Args: { p_name: string }; Returns: string }
 			get_classes: {
 				Args: { p_course_id: string }
@@ -350,7 +360,8 @@ export type Database = {
 			}
 		}
 		Enums: {
-			group_type: "university" | "faculty" | "course" | "class"
+			file_type: "note" | "summary" | "quiz" | "generic"
+			group_type: "university" | "faculty" | "course" | "class" | "personal"
 			membership_role: "student" | "instructor" | "admin"
 		}
 		CompositeTypes: {
@@ -522,7 +533,8 @@ export const Constants = {
 	},
 	public: {
 		Enums: {
-			group_type: ["university", "faculty", "course", "class"],
+			file_type: ["note", "summary", "quiz", "generic"],
+			group_type: ["university", "faculty", "course", "class", "personal"],
 			membership_role: ["student", "instructor", "admin"],
 		},
 	},

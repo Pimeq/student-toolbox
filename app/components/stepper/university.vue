@@ -5,42 +5,59 @@
 
 	const model = defineModel<string[]>("items")
 
-	// internal row-selection from UTable (object mapping like { "1": true }), synced to `model` as an array of group ids
-	const selectedRows = ref<Record<string, boolean> | any[]>([])
-
-	watch(selectedRows, (rows) => {
-		if (!rows) {
-			model.value = []
-			return
-		}
-
-		// If rows is an object mapping keys -> boolean, map keys to ids.
-		const keys = Object.keys(rows || {})
-		const selectedIds: string[] = []
-		for (const k of keys) {
-			if (!rows[k]) continue
-			// try to find a uni with id === k
-			const foundById = (uniList?.value || []).find(
-				(u: any) => String(u.id) === String(k),
-			)
-			if (foundById) {
-				selectedIds.push(String(foundById.id))
-				continue
-			}
-			// fallback: treat key as index
-			const idx = Number(k)
-			const foundByIndex = (uniList?.value || [])[idx]
-			if (foundByIndex) selectedIds.push(String(foundByIndex.id))
-		}
-		model.value = selectedIds
-	})
-
 	const client = useSupabaseClient()
-	const { data: uniList } = useAsyncData("universities", async () => {
+	const { data: uniList, pending } = useAsyncData("universities", async () => {
 		const { data, error } = await client.rpc("get_universities")
 		if (error) throw error
 		return data
 	})
+
+	// internal row-selection from UTable (object mapping like { "1": true })
+	const selectedRows = ref<Record<string, boolean>>({})
+
+	function sameIds(left: string[] = [], right: string[] = []) {
+		return (
+			left.length === right.length &&
+			left.every((id, index) => id === right[index])
+		)
+	}
+
+	function syncRowsFromModel() {
+		const universities = uniList.value || []
+		const nextSelection: Record<string, boolean> = {}
+
+		for (const [index, item] of universities.entries()) {
+			if (model.value?.includes(String(item.id))) {
+				nextSelection[String(index)] = true
+			}
+		}
+
+		selectedRows.value = nextSelection
+	}
+
+	watch(selectedRows, (rows) => {
+		const universities = uniList.value || []
+		const selectedIds: string[] = []
+
+		for (const [key, isSelected] of Object.entries(rows || {})) {
+			if (!isSelected) continue
+			const index = Number(key)
+			const found = universities[index]
+			if (found?.id) selectedIds.push(String(found.id))
+		}
+
+		if (!sameIds(model.value || [], selectedIds)) {
+			model.value = selectedIds
+		}
+	})
+
+	watch(
+		[model, uniList],
+		() => {
+			syncRowsFromModel()
+		},
+		{ immediate: true },
+	)
 
 	type Group = {
 		name: string
@@ -76,9 +93,9 @@
 </script>
 
 <template>
-	{{ model }}
 	<UTable
 		v-model:row-selection="selectedRows"
 		:columns="columns"
+		:loading="pending"
 		:data="uniList" />
 </template>
