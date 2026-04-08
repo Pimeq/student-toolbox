@@ -26,7 +26,7 @@
 
 			useToast().add({
 				title: "Success",
-				description: "Account created. Please check your email to confirm.",
+				description: "Account created.",
 				color: "success",
 			})
 

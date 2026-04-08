@@ -9,22 +9,39 @@
 		layout: "dashboard",
 	})
 
-	const { data: newUserGroupCount } = await useAsyncData(
-		"newUser",
+	const { data: userGroups } = await useAsyncData(
+		"userGroups",
 		async () => {
-			if (!user.value) return 0
+			if (!user.value) return []
 
-			const { count, error } = await supabase
-				.from("GroupMembers")
-				.select("*", { count: "exact", head: true })
+			const { data, error } = await supabase
+				.from("user_memberships")
+				.select("*")
 				.eq("user_id", user.value.sub)
-
 			if (error) throw error
-			return count ?? 0
+			return data ?? []
+		},
+		{
+			default: () => [],
 		},
 	)
+
+	const { data: res } = await useAsyncData("bucket", async () => {
+		const { data } = await supabase.storage.from("files").list("generic")
+		return data
+	})
 </script>
 
 <template>
-	<NewUserModal :show="newUserGroupCount == 0" />
+	<NewUserModal :show="userGroups.length == 0" />
+	<UDashboardPanel>
+		<template #header>
+			<UDashboardNavbar title="Dashboard">
+				<template #leading>
+					<UDashboardSidebarCollapse />
+				</template>
+			</UDashboardNavbar>
+			{{ res }}
+		</template>
+	</UDashboardPanel>
 </template>
