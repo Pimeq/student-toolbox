@@ -1,0 +1,23 @@
+name: auto-create-milestone
+
+on:
+  schedule:
+    - cron: 0 0 * * WED
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: readmeio/scheduled-milestones@v1.1
+        id: run
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: sprint -
+          days: Wednesday 
+          count: 10
+          format: DD.MM.YYYY
+
+      - name: result
+        run: echo ${{ steps.run.outputs.milestones }}
