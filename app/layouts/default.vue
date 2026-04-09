@@ -19,7 +19,7 @@
 				<UButton
 					to="/register"
 					color="primary">
-					Dołącz za darmo
+					Dołącz
 				</UButton>
 			</template>
 		</UHeader>

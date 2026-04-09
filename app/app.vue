@@ -1,4 +1,9 @@
 <script setup lang="ts">
+useHead({
+  htmlAttrs: {
+    lang: 'pl'
+  }
+})
 	const color = useColorMode()
 </script>
 
