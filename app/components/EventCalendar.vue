@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -23,6 +23,17 @@ interface CalEvent {
   allDay?: boolean
 }
 
+interface MembershipItem {
+  id: string
+  group_id: string
+  role: MembershipRole
+  user_id: string
+  group: {
+    type: Database['public']['Enums']['group_type']
+    name: string
+  } | null
+}
+
 type MembershipRole = Database['public']['Enums']['membership_role']
 type EventType = CalEvent['extendedProps']['type']
 
@@ -33,14 +44,14 @@ const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 
 const currentUserId = computed(() => user.value?.id ?? (user.value as { sub?: string } | null)?.sub ?? '')
 
-const { data: memberships, pending: membershipsPending } = await useAsyncData(
+const { data: memberships, pending: membershipsPending, refresh: refreshMemberships } = await useAsyncData<MembershipItem[]>(
   'calendar-memberships',
   async () => {
     if (!currentUserId.value) return []
 
     const { data, error } = await supabase
       .from('user_memberships')
-      .select('id, group_id, role, user_id')
+      .select('id, group_id, role, user_id, group:groups(type, name)')
       .eq('user_id', currentUserId.value)
 
     if (error) throw error
@@ -57,6 +68,8 @@ const currentRole = computed<MembershipRole>(() => {
 })
 
 const instructorGroupId = computed(() => memberships.value.find(membership => membership.role === 'instructor')?.group_id ?? null)
+const personalGroupId = computed(() => memberships.value.find(membership => membership.group?.type === 'personal')?.group_id ?? null)
+const userGroupIds = computed(() => memberships.value.map(membership => membership.group_id))
 
 const availableEventTypes = computed<EventType[]>(() => {
   if (currentRole.value === 'admin') return ['group', 'faculty', 'course', 'private']
@@ -68,6 +81,8 @@ const lockedEventType = computed<EventType | null>(() => availableEventTypes.val
 
 const canEditPrivateEvents = computed(() => currentRole.value === 'admin' || currentRole.value === 'student')
 const canEditGroupEvents = computed(() => currentRole.value === 'admin' || currentRole.value === 'instructor')
+const isCreating = ref(false)
+const addError = ref<string | null>(null)
 
 const selectedEvent = ref<CalEvent | null>(null)
 const showEventModal = ref(false)
@@ -85,57 +100,154 @@ function offsetDay(offset: number, hour = 0, min = 0) {
 }
 
 // Temp Seed events 
-const events = ref<CalEvent[]>([
+const fallbackEvents: CalEvent[] = [
   {
-    id: '1',
-    title: 'Algorytmy – wykład',
+    id: 'seed-1',
+    title: 'Algorytmy – wyklad',
     start: offsetDay(0, 10, 0),
     end: offsetDay(0, 12, 0),
     classNames: ['ev-group'],
-    extendedProps: { type: 'group', location: 'Aula A1', description: 'Wykład z algorytmów i złożoności obliczeniowej dla całej grupy.' },
+    extendedProps: { type: 'group', location: 'Aula A1', description: 'Wyklad grupowy.' },
   },
   {
-    id: '2',
-    title: 'Bazy danych – lab',
-    start: offsetDay(1, 14, 0),
-    end: offsetDay(1, 16, 0),
-    classNames: ['ev-group'],
-    extendedProps: { type: 'group', location: 'Sala 204', description: 'Laboratoria: zapytania SQL, indeksy, transakcje.' },
-  },
-  {
-    id: '3',
-    title: 'Dzień wydziału',
+    id: 'seed-2',
+    title: 'Dzien wydzialu',
     start: offsetDay(4),
     end: offsetDay(5),
     classNames: ['ev-faculty'],
-    extendedProps: { type: 'faculty', description: 'Dzień otwarty Wydziału Informatyki.' },
+    extendedProps: { type: 'faculty', description: 'Wydarzenie wydzialowe.' },
     allDay: true,
   },
-  {
-    id: '4',
-    title: 'Notatka: projekt grupowy',
-    start: offsetDay(0, 15, 0),
-    end: offsetDay(0, 20, 30),
-    classNames: ['ev-private'],
-    extendedProps: { type: 'private', description: 'Przygotować slajdy na spotkanie z promotorem.' },
+]
+
+const events = ref<CalEvent[]>([])
+
+const { data: dbEvents, refresh: refreshEvents } = await useAsyncData(
+  'calendar-events',
+  async () => {
+    if (!userGroupIds.value.length) return []
+
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, description, starts_at, ends_at, created_at, group_id')
+      .in('group_id', userGroupIds.value)
+      .order('starts_at', { ascending: true })
+
+    if (error) throw error
+    return data ?? []
   },
   {
-    id: '5',
-    title: 'Sieci komputerowe',
-    start: offsetDay(2, 9, 0),
-    end: offsetDay(2, 11, 0),
-    classNames: ['ev-course'],
-    extendedProps: { type: 'course', location: 'Sala 301', description: 'Protokoły TCP/IP, routowanie, VLAN.' },
+    default: () => [],
+    watch: [userGroupIds],
   },
-  {
-    id: '6',
-    title: 'Konsultacje – dr Kowalski',
-    start: offsetDay(3, 13, 0),
-    end: offsetDay(3, 14, 0),
-    classNames: ['ev-private'],
-    extendedProps: { type: 'private', location: 'Gabinet 112' },
+)
+
+function resolveEventType(groupId: string): EventType {
+  if (groupId === personalGroupId.value) return 'private'
+  if (memberships.value.some(membership => membership.group_id === groupId && membership.role === 'instructor')) return 'group'
+
+  const groupType = memberships.value.find(membership => membership.group_id === groupId)?.group?.type
+  if (groupType === 'faculty') return 'faculty'
+  if (groupType === 'course' || groupType === 'university') return 'course'
+  return 'group'
+}
+
+function resolveGroupIdForType(type: EventType): string | null {
+  if (type === 'private') {
+    return personalGroupId.value ?? null
+  }
+
+  if (type === 'group') {
+    return instructorGroupId.value ?? null
+  }
+
+  const matchByGroupType = memberships.value.find((membership) => {
+    if (!membership.group?.type) return false
+    if (type === 'faculty') return membership.group.type === 'faculty'
+    if (type === 'course') return membership.group.type === 'course' || membership.group.type === 'university'
+    return false
+  })
+
+  return matchByGroupType?.group_id ?? userGroupIds.value[0] ?? null
+}
+
+async function ensurePersonalGroupId() {
+  if (personalGroupId.value) return personalGroupId.value
+  if (!currentUserId.value) {
+    throw new Error('Brak aktywnego użytkownika.')
+  }
+
+  console.debug('[EventCalendar] creating personal group', {
+    userId: currentUserId.value,
+    email: user.value?.email,
+  })
+
+  const { data: group, error: groupError } = await supabase
+    .from('groups')
+    .insert({
+      name: `Private - ${user.value?.email ?? 'user'}`,
+      type: 'personal',
+    })
+    .select('id')
+    .single()
+
+  if (groupError) throw groupError
+
+  if (!group?.id) {
+    throw new Error('Nie udało się utworzyć grupy prywatnej.')
+  }
+
+  console.debug('[EventCalendar] personal group created', { groupId: group.id })
+
+  const { error: membershipError } = await supabase.from('user_memberships').insert({
+    group_id: group.id,
+    user_id: currentUserId.value,
+    role: 'student',
+  })
+
+  if (membershipError) throw membershipError
+
+  console.debug('[EventCalendar] personal membership created', { groupId: group.id })
+
+  await Promise.all([
+    refreshEvents(),
+    refreshMemberships(),
+  ])
+
+  return group.id
+}
+
+watch(
+  [dbEvents, memberships],
+  () => {
+    if (!dbEvents.value.length) {
+      events.value = fallbackEvents
+      return
+    }
+
+    events.value = dbEvents.value.map((eventRow) => {
+      const eventType = resolveEventType(eventRow.group_id)
+      const startsAt = eventRow.starts_at ?? eventRow.created_at
+      const endsAt = eventRow.ends_at ?? eventRow.starts_at ?? eventRow.created_at
+      const isAllDay = Boolean(startsAt && endsAt && startsAt.slice(11, 19) === '00:00:00' && endsAt.slice(11, 19) === '00:00:00')
+
+      return {
+        id: String(eventRow.id),
+        title: eventRow.title,
+        start: startsAt,
+        end: endsAt,
+        classNames: [`ev-${eventType}`],
+        extendedProps: {
+          type: eventType,
+          description: eventRow.description ?? undefined,
+          groupId: eventRow.group_id,
+        },
+        allDay: isAllDay,
+      }
+    })
   },
-])
+  { immediate: true, deep: true },
+)
 
 const calendarEvents = computed(() =>
   events.value.map((event) => {
@@ -252,15 +364,32 @@ const calOptions = computed<CalendarOptions>(() => ({
         targetEvent.end = info.event.endStr
       }
     }
+
+    const eventId = Number(info.event.id)
+    if (!Number.isFinite(eventId)) return
+
+    supabase
+      .from('events')
+      .update({
+        starts_at: info.event.startStr,
+        ends_at: info.event.endStr,
+      })
+      .eq('id', eventId)
+      .then(async ({ error }) => {
+        if (error) {
+          info.revert()
+          return
+        }
+        await refreshEvents()
+      })
   },
 
   eventContent(arg) {
     const type = arg.event.extendedProps?.type as keyof typeof typeConfig
-    const cfg = typeConfig[type] || typeConfig.private
     const loc = arg.event.extendedProps?.location
     return {
       html: `
-        <div class="fc-event-inner" style="border-left-color:${cfg.border}">
+        <div class="fc-event-inner fc-event-inner--${type || 'private'}">
           <span class="fc-event-title">${arg.event.title}</span>
           ${loc ? `<span class="fc-event-loc">${loc}</span>` : ''}
         </div>`,
@@ -269,8 +398,9 @@ const calOptions = computed<CalendarOptions>(() => ({
 }))
 
 // Actions
-function confirmAdd() {
+async function confirmAdd() {
   if (!newEvent.value.title.trim() || !addSlot.value) return
+  if (isCreating.value) return
 
   const resolvedType: EventType = currentRole.value === 'admin'
     ? newEvent.value.type
@@ -280,44 +410,75 @@ function confirmAdd() {
 
   if (!availableEventTypes.value.includes(resolvedType)) return
 
-  const id = Date.now().toString()
-  events.value.push({
-    id,
-    title: newEvent.value.title,
-    start: addSlot.value.start,
-    end: addSlot.value.end,
-    classNames: [`ev-${resolvedType}`],
-    extendedProps: {
+  addError.value = null
+  isCreating.value = true
+
+  try {
+    console.debug('[EventCalendar] confirmAdd start', {
+      title: newEvent.value.title,
       type: resolvedType,
-      location: newEvent.value.location || undefined,
-      description: newEvent.value.description || undefined,
-      groupId: currentRole.value === 'instructor' ? instructorGroupId.value : null,
-    },
-    allDay: false,
-  })
-  const api = calendarRef.value?.getApi()
-  api?.addEvent({
-    id,
-    title: newEvent.value.title,
-    start: addSlot.value.start,
-    end: addSlot.value.end,
-    classNames: [`ev-${resolvedType}`],
-    extendedProps: {
-      type: resolvedType,
-      location: newEvent.value.location || undefined,
-      description: newEvent.value.description || undefined,
-      groupId: currentRole.value === 'instructor' ? instructorGroupId.value : null,
-    },
-  })
-  showAddModal.value = false
+      slot: addSlot.value,
+    })
+
+    const targetGroupId =
+      resolvedType === 'private'
+        ? await ensurePersonalGroupId()
+        : resolveGroupIdForType(resolvedType)
+
+    if (!targetGroupId) {
+      addError.value = 'Nie udało się ustalić grupy docelowej dla tego wydarzenia.'
+      console.warn('[EventCalendar] missing target group id', { resolvedType })
+      return
+    }
+
+    console.debug('[EventCalendar] inserting event', {
+      title: newEvent.value.title,
+      groupId: targetGroupId,
+    })
+
+    const { error } = await supabase
+      .from('events')
+      .insert({
+        title: newEvent.value.title,
+        description: newEvent.value.description || null,
+        starts_at: addSlot.value.start,
+        ends_at: addSlot.value.end,
+        group_id: targetGroupId,
+        uploaded_by: currentUserId.value,
+      })
+
+    if (error) throw error
+
+    await refreshEvents()
+    showAddModal.value = false
+    console.debug('[EventCalendar] event inserted successfully')
+  } catch (error) {
+    console.error('[EventCalendar] failed to insert event', error)
+    addError.value = error instanceof Error ? error.message : 'Nie udało się zapisać wydarzenia.'
+  } finally {
+    isCreating.value = false
+  }
 }
 
 function deleteEvent() {
   if (!selectedEvent.value) return
-  const api = calendarRef.value?.getApi()
-  api?.getEventById(selectedEvent.value.id)?.remove()
-  events.value = events.value.filter(e => e.id !== selectedEvent.value!.id)
-  showEventModal.value = false
+
+  const eventId = Number(selectedEvent.value.id)
+  if (!Number.isFinite(eventId)) {
+    events.value = events.value.filter(e => e.id !== selectedEvent.value!.id)
+    showEventModal.value = false
+    return
+  }
+
+  supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId)
+    .then(async ({ error }) => {
+      if (error) return
+      await refreshEvents()
+      showEventModal.value = false
+    })
 }
 
 function formatDate(str: string) {
@@ -333,7 +494,7 @@ function formatDate(str: string) {
     <!-- Legend -->
     <div class="legend">
       <div v-for="(cfg, key) in typeConfig" :key="key" class="legend-item">
-        <span class="legend-dot" :style="{ background: cfg.color }" />
+        <span class="legend-dot" :class="`legend-dot--${key}`" />
         <span>{{ cfg.label }}</span>
       </div>
     </div>
@@ -349,16 +510,10 @@ function formatDate(str: string) {
       <Transition name="modal">
         <div v-if="showEventModal" class="overlay" @click.self="showEventModal = false">
           <div v-if="selectedEvent" class="modal">
-            <div class="modal-stripe" :style="{ background: typeConfig[selectedEvent.extendedProps.type]?.border }" />
+            <div class="modal-stripe" :class="`modal-stripe--${selectedEvent.extendedProps.type}`" />
             <button class="modal-close" @click="showEventModal = false">✕</button>
 
-            <div
-              class="modal-type-badge"
-              :style="{
-                background: typeConfig[selectedEvent.extendedProps.type]?.bg,
-                color: typeConfig[selectedEvent.extendedProps.type]?.color,
-              }"
-            >
+            <div class="modal-type-badge" :class="`modal-type-badge--${selectedEvent.extendedProps.type}`">
               {{ typeConfig[selectedEvent.extendedProps.type]?.label }}
             </div>
 
@@ -390,10 +545,10 @@ function formatDate(str: string) {
       <Transition name="modal">
         <div v-if="showAddModal" class="overlay" @click.self="showAddModal = false">
           <div class="modal">
-            <div class="modal-stripe" style="background: #60a5fa" />
+            <div class="modal-stripe modal-stripe--add" />
             <button class="modal-close" @click="showAddModal = false">✕</button>
 
-            <h2 class="modal-title" style="margin-top: 0.5rem">Nowy event</h2>
+            <h2 class="modal-title modal-title--add">Nowy event</h2>
             <p v-if="addSlot" class="modal-sub">{{ formatDate(addSlot.start) }}</p>
 
             <div class="modal-permission">
@@ -401,6 +556,8 @@ function formatDate(str: string) {
               <span v-else-if="currentRole === 'instructor'">Dodajesz wydarzenie tylko dla swojej grupy.</span>
               <span v-else>Jako admin możesz wybrać dowolny typ wydarzenia.</span>
             </div>
+
+            <p v-if="addError" class="modal-error">{{ addError }}</p>
 
             <div class="form">
               <label>Tytuł *</label>
@@ -419,11 +576,13 @@ function formatDate(str: string) {
                     v-for="key in availableEventTypes"
                     :key="key"
                     class="type-opt"
-                    :class="{ active: newEvent.type === key }"
-                    :style="newEvent.type === key ? { background: typeConfig[key].bg, borderColor: typeConfig[key].border, color: typeConfig[key].color } : {}"
+                    :class="[
+                      { active: newEvent.type === key },
+                      `type-opt--${key}`,
+                    ]"
                     @click="newEvent.type = key"
                   >
-                    <span class="type-dot" :style="{ background: typeConfig[key].color }" />
+                    <span class="type-dot" :class="`type-dot--${key}`" />
                     {{ typeConfig[key].label }}
                   </button>
                 </div>
@@ -439,7 +598,9 @@ function formatDate(str: string) {
 
             <div class="modal-actions">
               <button class="btn-cancel" @click="showAddModal = false">Anuluj</button>
-              <button class="btn-confirm" :disabled="!newEvent.title.trim()" @click="confirmAdd">Dodaj event</button>
+              <button class="btn-confirm" :disabled="!newEvent.title.trim() || isCreating" @click="confirmAdd">
+                {{ isCreating ? 'Zapisywanie…' : 'Dodaj event' }}
+              </button>
             </div>
           </div>
         </div>
