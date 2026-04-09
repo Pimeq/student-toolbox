@@ -19,6 +19,8 @@ interface CalEvent {
     description?: string
     type: 'group' | 'faculty' | 'private' | 'course'
     groupId?: string | null
+    uploadedBy?: string | null
+    canEdit?: boolean
   }
   allDay?: boolean
 }
@@ -40,6 +42,7 @@ type EventType = CalEvent['extendedProps']['type']
 // State 
 const supabase = useSupabaseClient<Database>()
 const user = useSupabaseUser()
+const toast = useToast()
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 
 const currentUserId = computed(() => user.value?.id ?? (user.value as { sub?: string } | null)?.sub ?? '')
@@ -73,18 +76,21 @@ const userGroupIds = computed(() => memberships.value.map(membership => membersh
 
 const availableEventTypes = computed<EventType[]>(() => {
   if (currentRole.value === 'admin') return ['group', 'faculty', 'course', 'private']
-  if (currentRole.value === 'instructor') return ['group']
+  if (currentRole.value === 'instructor') return ['group', 'private']
   return ['private']
 })
 
 const lockedEventType = computed<EventType | null>(() => availableEventTypes.value[0] ?? null)
 
-const canEditPrivateEvents = computed(() => currentRole.value === 'admin' || currentRole.value === 'student')
+const canEditPrivateEvents = computed(() =>
+  currentRole.value === 'admin' || currentRole.value === 'student' || currentRole.value === 'instructor',
+)
 const canEditGroupEvents = computed(() => currentRole.value === 'admin' || currentRole.value === 'instructor')
 const isCreating = ref(false)
 const addError = ref<string | null>(null)
 
 const selectedEvent = ref<CalEvent | null>(null)
+const eventActionError = ref<string | null>(null)
 const showEventModal = ref(false)
 const showAddModal = ref(false)
 const addSlot = ref<{ start: string; end: string } | null>(null)
@@ -129,7 +135,7 @@ const { data: dbEvents, refresh: refreshEvents } = await useAsyncData(
 
     const { data, error } = await supabase
       .from('events')
-      .select('id, title, description, starts_at, ends_at, created_at, group_id')
+      .select('id, title, description, starts_at, ends_at, created_at, group_id, uploaded_by')
       .in('group_id', userGroupIds.value)
       .order('starts_at', { ascending: true })
 
@@ -152,13 +158,13 @@ function resolveEventType(groupId: string): EventType {
   return 'group'
 }
 
-function resolveGroupIdForType(type: EventType): string | null {
+function resolveGroupIdForType(type: EventType, preferredInstructorGroupId?: string | null): string | null {
   if (type === 'private') {
     return personalGroupId.value ?? null
   }
 
   if (type === 'group') {
-    return instructorGroupId.value ?? null
+    return preferredInstructorGroupId ?? instructorGroupId.value ?? null
   }
 
   const matchByGroupType = memberships.value.find((membership) => {
@@ -177,11 +183,6 @@ async function ensurePersonalGroupId() {
     throw new Error('Brak aktywnego użytkownika.')
   }
 
-  console.debug('[EventCalendar] creating personal group', {
-    userId: currentUserId.value,
-    email: user.value?.email,
-  })
-
   const { data: group, error: groupError } = await supabase
     .from('groups')
     .insert({
@@ -197,8 +198,6 @@ async function ensurePersonalGroupId() {
     throw new Error('Nie udało się utworzyć grupy prywatnej.')
   }
 
-  console.debug('[EventCalendar] personal group created', { groupId: group.id })
-
   const { error: membershipError } = await supabase.from('user_memberships').insert({
     group_id: group.id,
     user_id: currentUserId.value,
@@ -206,8 +205,6 @@ async function ensurePersonalGroupId() {
   })
 
   if (membershipError) throw membershipError
-
-  console.debug('[EventCalendar] personal membership created', { groupId: group.id })
 
   await Promise.all([
     refreshEvents(),
@@ -241,6 +238,7 @@ watch(
           type: eventType,
           description: eventRow.description ?? undefined,
           groupId: eventRow.group_id,
+          uploadedBy: eventRow.uploaded_by,
         },
         allDay: isAllDay,
       }
@@ -252,9 +250,11 @@ watch(
 const calendarEvents = computed(() =>
   events.value.map((event) => {
     const isAllDayBackground = Boolean(event.allDay)
-    const canEditThisEvent = event.extendedProps.type === 'private'
+    const isOwner = !event.extendedProps.uploadedBy || event.extendedProps.uploadedBy === currentUserId.value
+    const canEditByRole = event.extendedProps.type === 'private'
       ? canEditPrivateEvents.value
       : canEditGroupEvents.value || currentRole.value === 'admin'
+    const canEditThisEvent = currentRole.value === 'admin' || (canEditByRole && isOwner)
 
     return {
       id: event.id,
@@ -325,7 +325,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     const defaultType = currentRole.value === 'admin'
       ? 'private'
       : currentRole.value === 'instructor'
-        ? 'group'
+        ? 'private'
         : 'private'
 
     newEvent.value = { title: '', location: '', description: '', type: defaultType }
@@ -333,6 +333,7 @@ const calOptions = computed<CalendarOptions>(() => ({
   },
 
   eventClick(info: EventClickArg) {
+    eventActionError.value = null
     selectedEvent.value = {
       id: info.event.id,
       title: info.event.title,
@@ -345,14 +346,16 @@ const calOptions = computed<CalendarOptions>(() => ({
     showEventModal.value = true
   },
 
-  eventDrop(info: EventDropArg) {
+  async eventDrop(info: EventDropArg) {
     const idx = events.value.findIndex(e => e.id === info.event.id)
-    const eventType = info.event.extendedProps?.type as EventType | undefined
-    const canMoveEvent = eventType === 'private'
-      ? canEditPrivateEvents.value
-      : canEditGroupEvents.value || currentRole.value === 'admin'
+    const canMoveEvent = Boolean(info.event.extendedProps?.canEdit)
 
     if (!canMoveEvent) {
+      toast.add({
+        title: 'Brak uprawnień',
+        description: 'Możesz przesuwać tylko własne wydarzenia.',
+        color: 'warning',
+      })
       info.revert()
       return
     }
@@ -368,20 +371,36 @@ const calOptions = computed<CalendarOptions>(() => ({
     const eventId = Number(info.event.id)
     if (!Number.isFinite(eventId)) return
 
-    supabase
+    const { data, error } = await supabase
       .from('events')
       .update({
         starts_at: info.event.startStr,
         ends_at: info.event.endStr,
       })
       .eq('id', eventId)
-      .then(async ({ error }) => {
-        if (error) {
-          info.revert()
-          return
-        }
-        await refreshEvents()
+      .select('id')
+
+    if (error) {
+      info.revert()
+      toast.add({
+        title: 'Nie udało się przesunąć wydarzenia',
+        description: error.message,
+        color: 'error',
       })
+      return
+    }
+
+    if (!data?.length) {
+      info.revert()
+      toast.add({
+        title: 'Brak uprawnień',
+        description: 'Nie masz uprawnień do edycji tego wydarzenia.',
+        color: 'warning',
+      })
+      return
+    }
+
+    await refreshEvents()
   },
 
   eventContent(arg) {
@@ -405,7 +424,7 @@ async function confirmAdd() {
   const resolvedType: EventType = currentRole.value === 'admin'
     ? newEvent.value.type
     : currentRole.value === 'instructor'
-      ? 'group'
+      ? newEvent.value.type
       : 'private'
 
   if (!availableEventTypes.value.includes(resolvedType)) return
@@ -414,27 +433,23 @@ async function confirmAdd() {
   isCreating.value = true
 
   try {
-    console.debug('[EventCalendar] confirmAdd start', {
-      title: newEvent.value.title,
-      type: resolvedType,
-      slot: addSlot.value,
-    })
+    if (resolvedType === 'group' && currentRole.value === 'instructor' && !instructorGroupId.value) {
+      addError.value = 'Brak grup instruktora do przypisania wydarzenia.'
+      return
+    }
 
     const targetGroupId =
       resolvedType === 'private'
         ? await ensurePersonalGroupId()
-        : resolveGroupIdForType(resolvedType)
+        : resolveGroupIdForType(
+            resolvedType,
+            currentRole.value === 'instructor' ? instructorGroupId.value : null,
+          )
 
     if (!targetGroupId) {
       addError.value = 'Nie udało się ustalić grupy docelowej dla tego wydarzenia.'
-      console.warn('[EventCalendar] missing target group id', { resolvedType })
       return
     }
-
-    console.debug('[EventCalendar] inserting event', {
-      title: newEvent.value.title,
-      groupId: targetGroupId,
-    })
 
     const { error } = await supabase
       .from('events')
@@ -451,17 +466,21 @@ async function confirmAdd() {
 
     await refreshEvents()
     showAddModal.value = false
-    console.debug('[EventCalendar] event inserted successfully')
   } catch (error) {
-    console.error('[EventCalendar] failed to insert event', error)
     addError.value = error instanceof Error ? error.message : 'Nie udało się zapisać wydarzenia.'
   } finally {
     isCreating.value = false
   }
 }
 
-function deleteEvent() {
+async function deleteEvent() {
   if (!selectedEvent.value) return
+  eventActionError.value = null
+
+  if (!canDeleteEvent(selectedEvent.value)) {
+    eventActionError.value = 'Nie możesz usunąć tego wydarzenia.'
+    return
+  }
 
   const eventId = Number(selectedEvent.value.id)
   if (!Number.isFinite(eventId)) {
@@ -470,15 +489,47 @@ function deleteEvent() {
     return
   }
 
-  supabase
+  const query = supabase
     .from('events')
     .delete()
     .eq('id', eventId)
-    .then(async ({ error }) => {
-      if (error) return
-      await refreshEvents()
-      showEventModal.value = false
-    })
+
+  const { data, error } = await query.select('id')
+
+  if (error) {
+    eventActionError.value = error.message
+    return
+  }
+
+  if (!data?.length) {
+    const { data: probeData, error: probeError } = await supabase
+      .from('events')
+      .select('id, uploaded_by, group_id, title')
+      .eq('id', eventId)
+      .maybeSingle()
+
+    if (probeError) {
+      eventActionError.value = `Nie udało się usunąć wydarzenia. ${probeError.message}`
+      return
+    }
+
+    if (!probeData) {
+      eventActionError.value = 'Nie udało się usunąć wydarzenia. Rekord nie istnieje albo nie masz do niego dostępu.'
+      return
+    }
+
+    if (probeData.uploaded_by === currentUserId.value) {
+      eventActionError.value = 'Nie udało się usunąć wydarzenia. Polityka RLS w Supabase blokuje DELETE dla tego użytkownika.'
+      return
+    }
+
+    const ownerInfo = `owner=${probeData.uploaded_by ?? 'null'}, user=${currentUserId.value || 'null'}`
+    eventActionError.value = `Nie udało się usunąć wydarzenia. ${ownerInfo}`
+    return
+  }
+
+  await refreshEvents()
+  showEventModal.value = false
 }
 
 function formatDate(str: string) {
@@ -486,6 +537,23 @@ function formatDate(str: string) {
   const d = new Date(str)
   return d.toLocaleString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
+
+function canDeleteEvent(event: CalEvent): boolean {
+  if (currentRole.value === 'admin') return true
+
+  const isOwner = event.extendedProps.uploadedBy === currentUserId.value
+  if (!isOwner) return false
+
+  if (currentRole.value === 'student') return event.extendedProps.type === 'private'
+  if (currentRole.value === 'instructor') return event.extendedProps.type === 'private' || event.extendedProps.type === 'group'
+
+  return false
+}
+
+const canDeleteSelectedEvent = computed(() => {
+  if (!selectedEvent.value) return false
+  return canDeleteEvent(selectedEvent.value)
+})
 </script>
 
 <template>
@@ -531,8 +599,10 @@ function formatDate(str: string) {
               <p v-if="selectedEvent.extendedProps.description" class="meta-desc">{{ selectedEvent.extendedProps.description }}</p>
             </div>
 
+            <p v-if="eventActionError" class="modal-error">{{ eventActionError }}</p>
+
             <div class="modal-actions">
-              <button class="btn-delete" @click="deleteEvent">Usuń event</button>
+              <button class="btn-delete" :disabled="!canDeleteSelectedEvent" @click="deleteEvent">Usuń event</button>
               <button class="btn-close" @click="showEventModal = false">Zamknij</button>
             </div>
           </div>
@@ -553,7 +623,7 @@ function formatDate(str: string) {
 
             <div class="modal-permission">
               <span v-if="currentRole === 'student'">Dodajesz tylko prywatne wydarzenie.</span>
-              <span v-else-if="currentRole === 'instructor'">Dodajesz wydarzenie tylko dla swojej grupy.</span>
+              <span v-else-if="currentRole === 'instructor'">Możesz dodać prywatną notatkę albo wydarzenie dla swojej grupy.</span>
               <span v-else>Jako admin możesz wybrać dowolny typ wydarzenia.</span>
             </div>
 

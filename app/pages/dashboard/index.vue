@@ -1,6 +1,8 @@
 <script setup lang="ts">
 	const supabase = useSupabaseClient()
 	const user = useSupabaseUser()
+	
+	// TODO: podpiąć kalendarz pod prawdziwe dane z Supabase
 	//TODO:
 	//fetch user groups, if not any -> show signup dialog
 	//some side panel with notes events and whatnot
@@ -41,7 +43,12 @@
 					<UDashboardSidebarCollapse />
 				</template>
 			</UDashboardNavbar>
-			{{ res }}
 		</template>
+
+		<div class="p-4">
+			<UButton to="/calendar" color="primary" variant="solid">
+				Otwórz kalendarz
+			</UButton>
+		</div>
 	</UDashboardPanel>
 </template>
