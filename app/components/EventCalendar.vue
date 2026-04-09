@@ -249,12 +249,13 @@ watch(
 
 const calendarEvents = computed(() =>
   events.value.map((event) => {
-    const isAllDayBackground = Boolean(event.allDay)
+    const isAllDayEvent = Boolean(event.allDay)
     const isOwner = !event.extendedProps.uploadedBy || event.extendedProps.uploadedBy === currentUserId.value
     const canEditByRole = event.extendedProps.type === 'private'
       ? canEditPrivateEvents.value
       : canEditGroupEvents.value || currentRole.value === 'admin'
     const canEditThisEvent = currentRole.value === 'admin' || (canEditByRole && isOwner)
+    const classNames = isAllDayEvent ? [...event.classNames, 'ev-all-day'] : event.classNames
 
     return {
       id: event.id,
@@ -262,13 +263,13 @@ const calendarEvents = computed(() =>
       start: event.start,
       end: event.end,
       allDay: event.allDay,
-      classNames: event.classNames,
+      classNames,
       backgroundColor: typeConfig[event.extendedProps.type].bg,
       borderColor: typeConfig[event.extendedProps.type].border,
       editable: canEditThisEvent,
       startEditable: canEditThisEvent,
       durationEditable: canEditThisEvent,
-      display: isAllDayBackground ? 'background' : 'auto',
+      display: 'auto',
       extendedProps: {
         ...event.extendedProps,
         canEdit: canEditThisEvent,
@@ -309,6 +310,7 @@ const calOptions = computed<CalendarOptions>(() => ({
   selectMirror: true,
   editable: true,
   dayMaxEvents: true,
+  dayMaxEventRows: 3,
   height: '100%',
   contentHeight: '100%',
   expandRows: true,
@@ -316,7 +318,15 @@ const calOptions = computed<CalendarOptions>(() => ({
   events: calendarEvents.value,
   eventOverlap: true,
   eventDisplay: 'auto',
-  eventOrder: 'start,-duration,allDay,title',
+  eventOrder(a: any, b: any) {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
+
+    const aStart = a.start ? Number(a.start) : 0
+    const bStart = b.start ? Number(b.start) : 0
+    if (aStart !== bStart) return aStart - bStart
+
+    return a.title.localeCompare(b.title)
+  },
 
   select(info: DateSelectArg) {
     if (membershipsPending.value) return
