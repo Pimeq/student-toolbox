@@ -93,7 +93,7 @@ const selectedEvent = ref<CalEvent | null>(null)
 const eventActionError = ref<string | null>(null)
 const showEventModal = ref(false)
 const showAddModal = ref(false)
-const addSlot = ref<{ start: string; end: string } | null>(null)
+const addSlot = ref<{ start: string; end: string; allDay: boolean } | null>(null)
 
 const newEvent = ref({ title: '', location: '', description: '', type: 'private' as CalEvent['extendedProps']['type'] })
 
@@ -103,6 +103,37 @@ function offsetDay(offset: number, hour = 0, min = 0) {
   const d = new Date()
   d.setDate(d.getDate() + offset)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:${pad(min)}:00`
+}
+
+function normalizeDbDateTime(value: string) {
+  if (!value) return value
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`
+  return value
+}
+
+function extractTime(value: string) {
+  if (!value) return ''
+  if (value.includes('T')) return value.split('T')[1]?.slice(0, 8) ?? ''
+  if (value.includes(' ')) return value.split(' ')[1]?.slice(0, 8) ?? ''
+  return ''
+}
+
+function isDateOnly(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function toDateKey(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value.includes('T') ? value : `${value}T00:00:00`)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 // Temp Seed events 
@@ -226,7 +257,14 @@ watch(
       const eventType = resolveEventType(eventRow.group_id)
       const startsAt = eventRow.starts_at ?? eventRow.created_at
       const endsAt = eventRow.ends_at ?? eventRow.starts_at ?? eventRow.created_at
-      const isAllDay = Boolean(startsAt && endsAt && startsAt.slice(11, 19) === '00:00:00' && endsAt.slice(11, 19) === '00:00:00')
+      const isAllDay = Boolean(
+        startsAt
+          && endsAt
+          && (
+            (isDateOnly(startsAt) && isDateOnly(endsAt))
+            || (extractTime(startsAt) === '00:00:00' && extractTime(endsAt) === '00:00:00')
+          ),
+      )
 
       return {
         id: String(eventRow.id),
@@ -278,6 +316,37 @@ const calendarEvents = computed(() =>
   }),
 )
 
+const allDayTitlesByDate = computed<Record<string, string[]>>(() => {
+  const result: Record<string, string[]> = {}
+
+  for (const event of events.value) {
+    if (!event.allDay) continue
+
+    const start = new Date(event.start.includes('T') ? event.start : `${event.start}T00:00:00`)
+    const rawEnd = new Date(event.end.includes('T') ? event.end : `${event.end}T00:00:00`)
+    const end = Number.isNaN(rawEnd.getTime()) ? new Date(start) : rawEnd
+
+    const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    const endExclusive = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+
+    if (endExclusive <= cursor) {
+      const key = toDateKey(cursor)
+      result[key] ||= []
+      result[key].push(event.title)
+      continue
+    }
+
+    while (cursor < endExclusive) {
+      const key = toDateKey(cursor)
+      result[key] ||= []
+      result[key].push(event.title)
+      cursor.setDate(cursor.getDate() + 1)
+    }
+  }
+
+  return result
+})
+
 // Event type config 
 const typeConfig = {
   group:   { label: 'Plan grupy',    color: '#60a5fa', bg: 'rgba(59,130,246,0.15)', border: '#3b82f6' },
@@ -328,10 +397,29 @@ const calOptions = computed<CalendarOptions>(() => ({
     return a.title.localeCompare(b.title)
   },
 
+  dayHeaderContent(arg) {
+    const viewType = arg.view?.type ?? ''
+    if (!viewType.startsWith('timeGrid')) {
+      return { text: arg.text }
+    }
+
+    const key = toDateKey(arg.date)
+    const titles = allDayTitlesByDate.value[key] ?? []
+    const primaryTitle = titles[0] ?? ''
+    const hiddenCount = Math.max(0, titles.length - 1)
+    const strip = primaryTitle
+      ? `<div class=\"fc-all-day-strip\"><span class=\"fc-all-day-trapezoid\" title=\"${escapeHtml(primaryTitle)}\">${escapeHtml(primaryTitle)}${hiddenCount > 0 ? ` +${hiddenCount}` : ''}</span></div>`
+      : ''
+
+    return {
+      html: `<div class=\"fc-day-header-wrap\"><span class=\"fc-day-header-label\">${escapeHtml(arg.text)}</span>${strip}</div>`,
+    }
+  },
+
   select(info: DateSelectArg) {
     if (membershipsPending.value) return
 
-    addSlot.value = { start: info.startStr, end: info.endStr }
+    addSlot.value = { start: info.startStr, end: info.endStr, allDay: info.allDay }
     const defaultType = currentRole.value === 'admin'
       ? 'private'
       : currentRole.value === 'instructor'
@@ -466,8 +554,8 @@ async function confirmAdd() {
       .insert({
         title: newEvent.value.title,
         description: newEvent.value.description || null,
-        starts_at: addSlot.value.start,
-        ends_at: addSlot.value.end,
+        starts_at: normalizeDbDateTime(addSlot.value.start),
+        ends_at: normalizeDbDateTime(addSlot.value.end),
         group_id: targetGroupId,
         uploaded_by: currentUserId.value,
       })

@@ -119,16 +119,74 @@
   border-color: var(--border) !important;
 }
 .cal-wrap :deep(.fc-col-header-cell-cushion) {
+  display: block;
+  width: 100%;
+  min-height: 56px;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-dim);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-decoration: none;
-  padding: 10px 0;
+  padding: 0;
 }
 .cal-wrap :deep(.fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion) {
   color: var(--accent);
+}
+
+.cal-wrap :deep(.fc-day-header-wrap) {
+  position: relative;
+  width: 100%;
+  min-height: 56px;
+}
+
+.cal-wrap :deep(.fc-day-header-label) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.cal-wrap :deep(.fc-all-day-strip) {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  width: calc(100% - 12px);
+  overflow: hidden;
+}
+
+.cal-wrap :deep(.fc-all-day-trapezoid) {
+  display: block;
+  width: 100%;
+  max-width: 170px;
+  padding: 3px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #dbeafe;
+  background: rgba(59,130,246,0.3);
+  border: 1px solid rgba(96,165,250,0.52);
+  clip-path: polygon(14% 0, 86% 0, 100% 100%, 0 100%);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-wrap :deep(.fc-all-day-trapezoid--more) {
+  color: #bfdbfe;
+  background: rgba(96,165,250,0.18);
 }
 
 .cal-wrap :deep(.fc-timegrid-slot-label) {
