@@ -75,6 +75,7 @@ interface EventMutationArg {
 }
 
 type MembershipRole = Database['public']['Enums']['membership_role']
+type UserLike = { id?: string; sub?: string } | null | undefined
 
 // State 
 const supabase = useSupabaseClient<Database>()
@@ -82,7 +83,11 @@ const user = useSupabaseUser()
 const toast = useToast()
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 
-const currentUserId = computed(() => user.value?.id ?? (user.value as { sub?: string } | null)?.sub ?? '')
+function resolveCurrentUserId(currentUser: UserLike) {
+  return currentUser?.id ?? currentUser?.sub ?? ''
+}
+
+const currentUserId = computed(() => resolveCurrentUserId(user.value as UserLike))
 
 const { data: memberships, pending: membershipsPending, refresh: refreshMemberships } = await useAsyncData<MembershipItem[]>(
   'calendar-memberships',
@@ -110,9 +115,7 @@ const currentRole = computed<MembershipRole>(() => {
 const personalGroupId = computed(() => memberships.value.find(membership => membership.group?.type === 'personal')?.group_id ?? null)
 const userGroupIds = computed(() => memberships.value.map(membership => membership.group_id))
 
-const canEditPrivateEvents = computed(() =>
-  currentRole.value === 'admin' || currentRole.value === 'student' || currentRole.value === 'instructor',
-)
+const canEditPrivateEvents = true
 const isCreating = ref(false)
 const isSavingEdit = ref(false)
 const addError = ref<string | null>(null)
@@ -130,7 +133,6 @@ const applyEditToFollowing = ref(false)
 const repeatWeekly = ref(false)
 const repeatWeeks = ref(2)
 const semesterWeekLimit = 15
-const ensuringPersonalGroup = ref(false)
 
 const modalUi = {
   content: '!bg-transparent !shadow-none !ring-0 !divide-y-0 !border-0 !p-0 !overflow-visible w-[calc(100vw-2rem)] !max-w-[400px]',
@@ -144,11 +146,6 @@ const editEvent = ref({ title: '', location: '', description: '' })
 
 // Helpers 
 function pad(n: number) { return n.toString().padStart(2, '0') }
-function offsetDay(offset: number, hour = 0, min = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() + offset)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:${pad(min)}:00`
-}
 
 function normalizeDbDateTime(value: string) {
   if (!value) return value
@@ -248,27 +245,6 @@ function buildSeriesId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `series-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
-
-// Temp Seed events 
-const fallbackEvents: CalEvent[] = [
-  {
-    id: 'seed-1',
-    title: 'Algorytmy – wyklad',
-    start: offsetDay(0, 10, 0),
-    end: offsetDay(0, 12, 0),
-    classNames: ['ev-class'],
-    extendedProps: { type: 'class', location: 'Aula A1', description: 'Wyklad grupowy.' },
-  },
-  {
-    id: 'seed-2',
-    title: 'Dzien wydzialu',
-    start: offsetDay(4),
-    end: offsetDay(5),
-    classNames: ['ev-faculty'],
-    extendedProps: { type: 'faculty', description: 'Wydarzenie wydzialowe.' },
-    allDay: true,
-  },
-]
 
 const events = ref<CalEvent[]>([])
 
@@ -478,7 +454,7 @@ watch(
   [dbEvents, memberships],
   () => {
     if (!dbEvents.value.length) {
-      events.value = fallbackEvents
+      events.value = []
       return
     }
 
@@ -527,7 +503,7 @@ const calendarEvents = computed(() =>
       && memberships.value.some(membership => membership.group_id === eventGroupId && membership.role === 'instructor'),
     )
     const canEditThisEvent = currentRole.value === 'admin'
-      || (event.extendedProps.type === 'private' && canEditPrivateEvents.value && isOwner)
+      || (event.extendedProps.type === 'private' && canEditPrivateEvents && isOwner)
       || (event.extendedProps.type !== 'private' && currentRole.value === 'instructor' && hasInstructorAccess)
     const classNames = isAllDayEvent ? [...event.classNames, 'ev-all-day'] : event.classNames
 
@@ -686,11 +662,10 @@ async function askSeriesScope(prompt: string) {
 }
 
 function resolveSeriesScope(choice: 'single' | 'following' | 'cancel') {
+  const resolver = resolveSeriesScopeChoice
+  resolveSeriesScopeChoice = null
   showSeriesScopeModal.value = false
-  if (resolveSeriesScopeChoice) {
-    resolveSeriesScopeChoice(choice)
-    resolveSeriesScopeChoice = null
-  }
+  resolver?.(choice)
 }
 
 // FullCalendar options
@@ -1184,7 +1159,54 @@ async function deleteEvent() {
 
   const eventId = Number(selectedEvent.value.id)
   if (!Number.isFinite(eventId)) {
-    events.value = events.value.filter(e => e.id !== selectedEvent.value!.id)
+    eventActionError.value = 'Nie można usunąć wpisu testowego. To seed/mock, a nie rekord z bazy.'
+    return
+  }
+
+  const seriesId = selectedEvent.value.extendedProps.seriesId ?? ''
+  const deleteMode = seriesId
+    ? await askSeriesScope('To wydarzenie należy do serii. Usunąć tylko to, czy to i kolejne tygodnie?')
+    : 'single'
+
+  if (deleteMode === 'cancel') return
+
+  if (deleteMode === 'following' && seriesId) {
+    const { data: matchingRows, error: matchingError } = await supabase
+      .from('events')
+      .select('id, starts_at')
+      .like('description', `%@series:${seriesId}%`)
+      .order('starts_at', { ascending: true })
+
+    if (matchingError) {
+      eventActionError.value = matchingError.message
+      return
+    }
+
+    const anchorMs = new Date(selectedEvent.value.start).getTime()
+    const idsToDelete = (matchingRows ?? [])
+      .filter(row => {
+        if (!row.starts_at) return false
+        const startsAtMs = new Date(row.starts_at).getTime()
+        return Number.isFinite(startsAtMs) && startsAtMs >= anchorMs
+      })
+      .map(row => row.id)
+
+    if (!idsToDelete.length) {
+      eventActionError.value = 'Nie znaleziono kolejnych wystąpień serii do usunięcia.'
+      return
+    }
+
+    const { error: deleteSeriesError } = await supabase
+      .from('events')
+      .delete()
+      .in('id', idsToDelete)
+
+    if (deleteSeriesError) {
+      eventActionError.value = deleteSeriesError.message
+      return
+    }
+
+    await refreshEvents()
     showEventModal.value = false
     return
   }
@@ -1277,10 +1299,9 @@ watch(selectableViewGroups, () => {
 }, { immediate: true })
 
 watch([currentUserId, membershipsPending, memberships], async () => {
-  if (!currentUserId.value || membershipsPending.value || ensuringPersonalGroup.value) return
+  if (!currentUserId.value || membershipsPending.value) return
   if (memberships.value.some(membership => membership.group?.type === 'personal')) return
 
-  ensuringPersonalGroup.value = true
   try {
     await ensurePersonalGroupId()
   } catch (error) {
@@ -1290,8 +1311,6 @@ watch([currentUserId, membershipsPending, memberships], async () => {
       description: message,
       color: 'error',
     })
-  } finally {
-    ensuringPersonalGroup.value = false
   }
 }, { immediate: true, deep: true })
 
@@ -1299,6 +1318,14 @@ watch(showSeriesScopeModal, (open) => {
   if (!open && resolveSeriesScopeChoice) {
     resolveSeriesScopeChoice('cancel')
     resolveSeriesScopeChoice = null
+  }
+})
+
+watch(showEventModal, (open) => {
+  if (!open) {
+    isEditingEvent.value = false
+    applyEditToFollowing.value = false
+    eventActionError.value = null
   }
 })
 </script>
