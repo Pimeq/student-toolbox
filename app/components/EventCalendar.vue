@@ -1476,7 +1476,12 @@ watch(showEventModal, (open) => {
     </ClientOnly>
 
     <!-- Event detail modal -->
-    <UModal v-model:open="showEventModal" :ui="modalUi">
+    <UModal
+      v-model:open="showEventModal"
+      :ui="modalUi"
+      :title="isEditingEvent ? 'Edycja wydarzenia' : (selectedEvent?.title || 'Szczegóły wydarzenia')"
+      :description="isEditingEvent ? 'Formularz edycji wybranego wydarzenia.' : 'Szczegóły oraz dostępne akcje dla wybranego wydarzenia.'"
+    >
       <template #content>
         <div v-if="selectedEvent" class="modal">
           <div class="modal-stripe" :class="`modal-stripe--${selectedEvent.extendedProps.type}`" />
@@ -1552,7 +1557,12 @@ watch(showEventModal, (open) => {
     </UModal>
 
     <!-- Add event modal -->
-    <UModal v-model:open="showAddModal" :ui="modalUi">
+    <UModal
+      v-model:open="showAddModal"
+      :ui="modalUi"
+      title="Nowy event"
+      description="Formularz dodawania nowego wydarzenia do kalendarza."
+    >
       <template #content>
         <div class="modal">
           <div class="modal-stripe modal-stripe--add" />
@@ -1611,7 +1621,12 @@ watch(showEventModal, (open) => {
     </UModal>
 
     <!-- Series scope modal -->
-    <UModal v-model:open="showSeriesScopeModal" :ui="modalUi">
+    <UModal
+      v-model:open="showSeriesScopeModal"
+      :ui="modalUi"
+      title="Aktualizacja serii"
+      description="Wybierz zakres aktualizacji dla wydarzenia należącego do serii."
+    >
       <template #content>
         <div class="modal">
           <div class="modal-stripe modal-stripe--course" />
