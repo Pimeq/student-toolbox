@@ -838,6 +838,19 @@
     gap: 0.75rem;
   }
 
+  .legend-row {
+    gap: 0.75rem;
+  }
+
+  .group-context {
+    width: 100%;
+  }
+
+  .group-context select {
+    flex: 1;
+    min-width: 0;
+  }
+
   .legend {
     gap: 0.75rem;
   }
@@ -848,5 +861,78 @@
 
   .cal-wrap {
     border-radius: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cal-wrap :deep(.fc-toolbar) {
+    padding: 10px 12px;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .cal-wrap :deep(.fc-toolbar-title) {
+    font-size: 14px;
+  }
+
+  .cal-wrap :deep(.fc-toolbar-chunk) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .cal-wrap :deep(.fc-button) {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+
+  .cal-wrap :deep(.fc-timeGridWeek-view),
+  .cal-wrap :deep(.fc-timeGridWeek-view .fc-scrollgrid),
+  .cal-wrap :deep(.fc-timeGridWeek-view .fc-scrollgrid-sync-table) {
+    min-width: 780px;
+  }
+
+  .cal-wrap :deep(.fc-timeGridDay-view),
+  .cal-wrap :deep(.fc-timeGridDay-view .fc-scrollgrid),
+  .cal-wrap :deep(.fc-timeGridDay-view .fc-scrollgrid-sync-table) {
+    min-width: 340px;
+  }
+
+  .cal-wrap :deep(.fc-day-header-wrap),
+  .cal-wrap :deep(.fc-col-header-cell-cushion),
+  .cal-wrap :deep(.fc-day-header-label--month) {
+    min-height: 48px;
+  }
+
+  .cal-wrap :deep(.fc-day-header-label) {
+    font-size: 10px;
+    letter-spacing: 0.05em;
+  }
+
+  .cal-wrap :deep(.fc-daygrid-day-frame) {
+    min-height: 76px;
+  }
+
+  .cal-wrap :deep(.fc-daygrid-day-number) {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 560px) {
+  .cal-wrap :deep(.fc-toolbar) {
+    padding: 8px 10px;
+  }
+
+  .cal-wrap :deep(.fc-toolbar-title) {
+    width: 100%;
+    font-size: 13px;
+  }
+
+  .cal-wrap :deep(.fc-timeGridWeek-view),
+  .cal-wrap :deep(.fc-timeGridWeek-view .fc-scrollgrid),
+  .cal-wrap :deep(.fc-timeGridWeek-view .fc-scrollgrid-sync-table) {
+    min-width: 720px;
   }
 }
