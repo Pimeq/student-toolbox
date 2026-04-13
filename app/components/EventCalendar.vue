@@ -115,7 +115,6 @@ const currentRole = computed<MembershipRole>(() => {
 const personalGroupId = computed(() => memberships.value.find(membership => membership.group?.type === 'personal')?.group_id ?? null)
 const userGroupIds = computed(() => memberships.value.map(membership => membership.group_id))
 
-const canEditPrivateEvents = true
 const isCreating = ref(false)
 const isSavingEdit = ref(false)
 const addError = ref<string | null>(null)
@@ -503,7 +502,7 @@ const calendarEvents = computed(() =>
       && memberships.value.some(membership => membership.group_id === eventGroupId && membership.role === 'instructor'),
     )
     const canEditThisEvent = currentRole.value === 'admin'
-      || (event.extendedProps.type === 'private' && canEditPrivateEvents && isOwner)
+      || (event.extendedProps.type === 'private' && isOwner)
       || (event.extendedProps.type !== 'private' && currentRole.value === 'instructor' && hasInstructorAccess)
     const classNames = isAllDayEvent ? [...event.classNames, 'ev-all-day'] : event.classNames
 
@@ -1158,11 +1157,6 @@ async function deleteEvent() {
   }
 
   const eventId = Number(selectedEvent.value.id)
-  if (!Number.isFinite(eventId)) {
-    eventActionError.value = 'Nie można usunąć wpisu testowego. To seed/mock, a nie rekord z bazy.'
-    return
-  }
-
   const seriesId = selectedEvent.value.extendedProps.seriesId ?? ''
   const deleteMode = seriesId
     ? await askSeriesScope('To wydarzenie należy do serii. Usunąć tylko to, czy to i kolejne tygodnie?')
@@ -1237,11 +1231,6 @@ async function deleteEvent() {
 
     if (!probeData) {
       eventActionError.value = 'Nie udało się usunąć wydarzenia. Rekord nie istnieje albo nie masz do niego dostępu.'
-      return
-    }
-
-    if (probeData.uploaded_by === currentUserId.value) {
-      eventActionError.value = 'Nie udało się usunąć wydarzenia. Polityka RLS w Supabase blokuje DELETE dla tego użytkownika.'
       return
     }
 
