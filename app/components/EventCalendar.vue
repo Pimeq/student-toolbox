@@ -18,6 +18,8 @@ interface CalEvent {
     location?: string
     description?: string
     seriesId?: string
+    sessionKind?: SessionKind
+    scopeGroupId?: string
     type: 'university' | 'faculty' | 'course' | 'class' | 'private'
     groupId?: string | null
     uploadedBy?: string | null
@@ -76,6 +78,7 @@ interface EventMutationArg {
 
 type MembershipRole = Database['public']['Enums']['membership_role']
 type UserLike = { id?: string; sub?: string } | null | undefined
+type SessionKind = 'lecture' | 'lab' | 'exercise' | 'project'
 
 // State 
 const supabase = useSupabaseClient<Database>()
@@ -140,8 +143,8 @@ const modalUi = {
 const seriesScopePrompt = ref('')
 let resolveSeriesScopeChoice: ((choice: 'single' | 'following' | 'cancel') => void) | null = null
 
-const newEvent = ref({ title: '', location: '', description: '' })
-const editEvent = ref({ title: '', location: '', description: '' })
+const newEvent = ref({ title: '', location: '', description: '', sessionKind: '' as '' | SessionKind })
+const editEvent = ref({ title: '', location: '', description: '', sessionKind: '' as '' | SessionKind })
 
 // Helpers 
 function pad(n: number) { return n.toString().padStart(2, '0') }
@@ -195,12 +198,14 @@ function escapeHtml(value: string) {
 
 function parseStoredDescription(raw?: string | null) {
   const text = (raw ?? '').trim()
-  if (!text) return { note: '', location: '', seriesId: '' }
+  if (!text) return { note: '', location: '', seriesId: '', sessionKind: '' as '' | SessionKind, scopeGroupId: '' }
 
   const lines = text.split(/\r?\n/)
   let cursor = 0
   let location = ''
   let seriesId = ''
+  let sessionKind: '' | SessionKind = ''
+  let scopeGroupId = ''
 
   while (cursor < lines.length) {
     const line = lines[cursor]?.trim() ?? ''
@@ -221,18 +226,43 @@ function parseStoredDescription(raw?: string | null) {
       continue
     }
 
+    if (line.startsWith('@kind:')) {
+      const rawKind = line.slice(6).trim()
+      if (rawKind === 'lecture' || rawKind === 'lab' || rawKind === 'exercise' || rawKind === 'project') {
+        sessionKind = rawKind
+      }
+      cursor += 1
+      continue
+    }
+
+    if (line.startsWith('@scope:')) {
+      scopeGroupId = line.slice(7).trim()
+      cursor += 1
+      continue
+    }
+
     break
   }
 
   const note = lines.slice(cursor).join('\n').trim()
-  if (!location && !seriesId) return { note: text, location: '', seriesId: '' }
-  return { note, location, seriesId }
+  if (!location && !seriesId && !sessionKind && !scopeGroupId) {
+    return { note: text, location: '', seriesId: '', sessionKind: '' as '' | SessionKind, scopeGroupId: '' }
+  }
+  return { note, location, seriesId, sessionKind, scopeGroupId }
 }
 
-function buildStoredDescription(note: string, location: string, seriesId?: string | null) {
+function buildStoredDescription(
+  note: string,
+  location: string,
+  seriesId?: string | null,
+  sessionKind?: '' | SessionKind,
+  scopeGroupId?: string | null,
+) {
   const meta: string[] = []
   if (location.trim()) meta.push(`@loc:${location.trim()}`)
   if (seriesId?.trim()) meta.push(`@series:${seriesId.trim()}`)
+  if (sessionKind) meta.push(`@kind:${sessionKind}`)
+  if (scopeGroupId?.trim()) meta.push(`@scope:${scopeGroupId.trim()}`)
 
   const cleanNote = note.trim()
   if (!meta.length) return cleanNote || null
@@ -243,6 +273,68 @@ function buildStoredDescription(note: string, location: string, seriesId?: strin
 function buildSeriesId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
   return `series-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+// Event type config
+const typeConfig = {
+  university: {
+    label: 'Uczelnia',
+    color: '#dc2626',       // red-600
+    bg: '#fee2e2',          // red-100
+    border: '#fecaca',      // red-200
+    darkBg: 'rgba(220,38,38,0.18)',
+  },
+  faculty: {
+    label: 'Wydział',
+    color: '#059669',       // emerald-600
+    bg: '#d1fae5',          // emerald-100
+    border: '#a7f3d0',      // emerald-200
+    darkBg: 'rgba(5,150,105,0.18)',
+  },
+  course: {
+    label: 'Kierunek',
+    color: '#2563eb',       // blue-600
+    bg: '#dbeafe',          // blue-100
+    border: '#bfdbfe',      // blue-200
+    darkBg: 'rgba(37,99,235,0.18)',
+  },
+  class: {
+    label: 'Grupa',
+    color: '#7c3aed',       // violet-600
+    bg: '#ede9fe',          // violet-100
+    border: '#ddd6fe',      // violet-200
+    darkBg: 'rgba(124,58,237,0.18)',
+  },
+  private: {
+    label: 'Prywatne',
+    color: '#d97706',       // amber-600
+    bg: '#fef3c7',          // amber-100
+    border: '#fde68a',      // amber-200
+    darkBg: 'rgba(217,119,6,0.18)',
+  },
+}
+
+const sessionKindConfig = {
+  lecture: {
+    label: 'Wykład',
+    bg: '#e0f2fe', // sky-100
+    className: 'ev-kind-lecture',
+  },
+  lab: {
+    label: 'Laboratorium',
+    bg: '#dcfce7', // green-100
+    className: 'ev-kind-lab',
+  },
+  exercise: {
+    label: 'Ćwiczenia',
+    bg: '#fff7ed', // orange-100
+    className: 'ev-kind-exercise',
+  },
+  project: {
+    label: 'Projekt',
+    bg: '#f5f3ff', // violet-100
+    className: 'ev-kind-project',
+  },
 }
 
 const events = ref<CalEvent[]>([])
@@ -372,7 +464,15 @@ const allGroups = computed<GroupOption[]>(() => {
 })
 
 const selectableViewGroups = computed<GroupOption[]>(() => {
-  return allGroups.value.filter(group => group.role === 'instructor' && group.type !== 'personal')
+  return allGroups.value
+})
+
+const canCreateGroupEventInSelectedGroup = computed(() => {
+  if (!selectedViewGroupId.value) return false
+  if (currentRole.value === 'admin') return true
+
+  const membership = memberships.value.find(item => item.group_id === selectedViewGroupId.value)
+  return membership?.role === 'instructor' || membership?.role === 'admin'
 })
 
 const visibleEvents = computed(() => {
@@ -401,7 +501,12 @@ const visibleEvents = computed(() => {
 
   const mergedById = new Map<string, CalEvent>()
   for (const event of scopedEvents) mergedById.set(event.id, event)
-  for (const event of ownPrivateEvents) mergedById.set(event.id, event)
+  for (const event of ownPrivateEvents) {
+    const eventScope = event.extendedProps.scopeGroupId
+    if (!eventScope || eventScope === selectedViewGroupId.value) {
+      mergedById.set(event.id, event)
+    }
+  }
   return Array.from(mergedById.values())
 })
 
@@ -476,12 +581,17 @@ watch(
         title: eventRow.title,
         start: startsAt,
         end: endsAt,
-        classNames: [`ev-${eventType}`],
+        classNames: [
+          `ev-${eventType}`,
+          parsedDescription.sessionKind ? sessionKindConfig[parsedDescription.sessionKind].className : '',
+        ].filter(Boolean),
         extendedProps: {
           type: eventType,
           description: parsedDescription.note || undefined,
           location: parsedDescription.location || undefined,
           seriesId: parsedDescription.seriesId || undefined,
+          sessionKind: parsedDescription.sessionKind || undefined,
+          scopeGroupId: parsedDescription.scopeGroupId || undefined,
           groupId: eventRow.group_id,
           uploadedBy: eventRow.uploaded_by,
         },
@@ -504,6 +614,7 @@ const calendarEvents = computed(() =>
     const canEditThisEvent = currentRole.value === 'admin'
       || (event.extendedProps.type === 'private' && isOwner)
       || (event.extendedProps.type !== 'private' && currentRole.value === 'instructor' && hasInstructorAccess)
+    const sessionBg = event.extendedProps.sessionKind ? sessionKindConfig[event.extendedProps.sessionKind].bg : null
     const classNames = isAllDayEvent ? [...event.classNames, 'ev-all-day'] : event.classNames
 
     return {
@@ -513,7 +624,7 @@ const calendarEvents = computed(() =>
       end: event.end,
       allDay: event.allDay,
       classNames,
-      backgroundColor: typeConfig[event.extendedProps.type].bg,
+      backgroundColor: sessionBg ?? typeConfig[event.extendedProps.type].bg,
       borderColor: typeConfig[event.extendedProps.type].border,
       editable: canEditThisEvent,
       startEditable: canEditThisEvent,
@@ -557,15 +668,6 @@ const allDayTitlesByDate = computed<Record<string, string[]>>(() => {
 
   return result
 })
-
-// Event type config 
-const typeConfig = {
-  university: { label: 'Uczelnia', color: '#f87171', bg: 'rgba(248,113,113,0.14)', border: '#ef4444' },
-  faculty:    { label: 'Wydział',  color: '#34d399', bg: 'rgba(16,185,129,0.14)', border: '#10b981' },
-  course:     { label: 'Kierunek', color: '#60a5fa', bg: 'rgba(59,130,246,0.14)', border: '#3b82f6' },
-  class:      { label: 'Grupa',    color: '#c084fc', bg: 'rgba(168,85,247,0.14)', border: '#a855f7' },
-  private:    { label: 'Prywatne', color: '#fbbf24', bg: 'rgba(245,158,11,0.14)', border: '#f59e0b' },
-}
 
 function shiftDateTimeByMs(value: string | null | undefined, deltaMs: number) {
   if (!value) return value ?? null
@@ -715,7 +817,9 @@ const calOptions = computed<CalendarOptions>(() => ({
   dayHeaderContent(arg) {
     const viewType = arg.view?.type ?? ''
     if (!viewType.startsWith('timeGrid')) {
-      return { text: arg.text }
+      return {
+        html: `<div class="fc-day-header-wrap"><span class="fc-day-header-label fc-day-header-label--month">${escapeHtml(arg.text)}</span></div>`,
+      }
     }
 
     const key = toDateKey(arg.date)
@@ -735,8 +839,8 @@ const calOptions = computed<CalendarOptions>(() => ({
     if (membershipsPending.value) return
 
     addSlot.value = { start: info.startStr, end: info.endStr, allDay: info.allDay }
-    newEvent.value = { title: '', location: '', description: '' }
-    createAsPrivate.value = false
+    newEvent.value = { title: '', location: '', description: '', sessionKind: '' }
+    createAsPrivate.value = !canCreateGroupEventInSelectedGroup.value
     addError.value = null
     repeatWeekly.value = false
     repeatWeeks.value = 2
@@ -759,6 +863,7 @@ const calOptions = computed<CalendarOptions>(() => ({
       title: info.event.title,
       location: (info.event.extendedProps?.location as string | undefined) ?? '',
       description: (info.event.extendedProps?.description as string | undefined) ?? '',
+      sessionKind: (info.event.extendedProps?.sessionKind as '' | SessionKind | undefined) ?? '',
     }
     applyEditToFollowing.value = false
     showEventModal.value = true
@@ -997,10 +1102,13 @@ const calOptions = computed<CalendarOptions>(() => ({
   eventContent(arg) {
     const type = arg.event.extendedProps?.type as keyof typeof typeConfig
     const loc = arg.event.extendedProps?.location
+    const sessionKind = arg.event.extendedProps?.sessionKind as SessionKind | undefined
+    const sessionLabel = sessionKind ? sessionKindConfig[sessionKind]?.label : ''
     return {
       html: `
         <div class="fc-event-inner fc-event-inner--${type || 'private'}">
           <span class="fc-event-title">${arg.event.title}</span>
+          ${sessionLabel ? `<span class="fc-event-kind">${sessionLabel}</span>` : ''}
           ${loc ? `<span class="fc-event-loc">${loc}</span>` : ''}
         </div>`,
     }
@@ -1017,8 +1125,10 @@ async function confirmAdd() {
 
   try {
     let targetGroupId: string | null = null
+    const mustBePrivate = !canCreateGroupEventInSelectedGroup.value
+    const saveAsPrivate = createAsPrivate.value || mustBePrivate
 
-    if (createAsPrivate.value) {
+    if (saveAsPrivate) {
       targetGroupId = await ensurePersonalGroupId()
     } else {
       targetGroupId = resolveTargetGroupIdForCreate()
@@ -1038,7 +1148,13 @@ async function confirmAdd() {
       const dayOffset = index * 7
       return {
         title: newEvent.value.title,
-        description: buildStoredDescription(newEvent.value.description, newEvent.value.location, seriesId),
+        description: buildStoredDescription(
+          newEvent.value.description,
+          newEvent.value.location,
+          seriesId,
+          newEvent.value.sessionKind,
+          saveAsPrivate ? selectedViewGroupId.value : null,
+        ),
         starts_at: addDaysKeepingTime(baseStart, dayOffset),
         ends_at: addDaysKeepingTime(baseEnd, dayOffset),
         group_id: targetGroupId,
@@ -1087,7 +1203,13 @@ async function saveEventEdits() {
 
   const updatePayload = {
     title: editEvent.value.title,
-    description: buildStoredDescription(editEvent.value.description, editEvent.value.location, currentSeriesId || null),
+    description: buildStoredDescription(
+      editEvent.value.description,
+      editEvent.value.location,
+      currentSeriesId || null,
+      editEvent.value.sessionKind,
+      selectedEvent.value.extendedProps.scopeGroupId || null,
+    ),
     group_id: selectedEvent.value.extendedProps.groupId || undefined,
   }
 
@@ -1140,6 +1262,8 @@ async function saveEventEdits() {
       ...selectedEvent.value.extendedProps,
       location: editEvent.value.location || undefined,
       description: editEvent.value.description || undefined,
+      sessionKind: editEvent.value.sessionKind || undefined,
+      scopeGroupId: selectedEvent.value.extendedProps.scopeGroupId,
       groupId: selectedEvent.value.extendedProps.groupId,
     },
   }
@@ -1287,6 +1411,10 @@ watch(selectableViewGroups, () => {
   }
 }, { immediate: true })
 
+watch(canCreateGroupEventInSelectedGroup, (canCreate) => {
+  if (!canCreate) createAsPrivate.value = true
+})
+
 watch([currentUserId, membershipsPending, memberships], async () => {
   if (!currentUserId.value || membershipsPending.value) return
   if (memberships.value.some(membership => membership.group?.type === 'personal')) return
@@ -1370,6 +1498,10 @@ watch(showEventModal, (open) => {
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5C5.515 1.5 3.5 3.515 3.5 6c0 3.75 4.5 8.5 4.5 8.5S12.5 9.75 12.5 6c0-2.485-2.015-4.5-4.5-4.5z" stroke="currentColor" stroke-width="1.5" /><circle cx="8" cy="6" r="1.5" stroke="currentColor" stroke-width="1.3" /></svg>
                 <span>{{ selectedEvent.extendedProps.location }}</span>
               </div>
+              <div v-if="selectedEvent.extendedProps.sessionKind" class="meta-row">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 4.5h11M4.5 2.5v4M11.5 2.5v4M2.5 7.5h11v6h-11z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <span>{{ sessionKindConfig[selectedEvent.extendedProps.sessionKind].label }}</span>
+              </div>
               <p v-if="selectedEvent.extendedProps.description" class="meta-desc">{{ selectedEvent.extendedProps.description }}</p>
             </div>
           </template>
@@ -1385,6 +1517,17 @@ watch(showEventModal, (open) => {
 
               <label>Lokalizacja</label>
               <input v-model="editEvent.location" placeholder="np. Sala 204">
+
+              <template v-if="selectedEvent?.extendedProps.type === 'private' || currentRole === 'instructor' || currentRole === 'admin'">
+                <label>Typ zajęć</label>
+                <select v-model="editEvent.sessionKind">
+                  <option value="">Brak</option>
+                  <option value="lecture">Wykład</option>
+                  <option value="lab">Laboratorium</option>
+                  <option value="exercise">Ćwiczenia</option>
+                  <option value="project">Projekt</option>
+                </select>
+              </template>
 
               <label v-if="selectedEvent?.extendedProps.seriesId" class="repeat-toggle">
                 <input v-model="applyEditToFollowing" type="checkbox">
@@ -1430,8 +1573,19 @@ watch(showEventModal, (open) => {
             <label>Notatka</label>
             <textarea v-model="newEvent.description" placeholder="Opcjonalny opis…" rows="3" />
 
+            <template v-if="createAsPrivate || currentRole === 'instructor' || currentRole === 'admin'">
+              <label>Typ zajęć</label>
+              <select v-model="newEvent.sessionKind">
+                <option value="">Brak</option>
+                <option value="lecture">Wykład</option>
+                <option value="lab">Laboratorium</option>
+                <option value="exercise">Ćwiczenia</option>
+                <option value="project">Projekt</option>
+              </select>
+            </template>
+
             <label class="repeat-toggle">
-              <input v-model="createAsPrivate" type="checkbox">
+              <input v-model="createAsPrivate" type="checkbox" :disabled="!canCreateGroupEventInSelectedGroup">
               <span>Prywatne (widoczne tylko dla mnie)</span>
             </label>
 
