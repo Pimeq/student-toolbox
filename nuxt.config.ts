@@ -14,13 +14,18 @@ export default defineNuxtConfig({
 	],
 	supabase: {
 		url: process.env.SUPABASE_URL,
-    	key: process.env.SUPABASE_ANON_KEY,
+		key: process.env.SUPABASE_ANON_KEY,
 		redirectOptions: {
 			login: "/login",
 			exclude: ["/register", "/login", "/"],
 			callback: "/confirm",
 		},
 	},
+
+	runtimeConfig: {
+		mistralApiKey: process.env.MISTRAL_API_KEY,
+	},
+	
 	vite: {
 		optimizeDeps: {
 			include: [
