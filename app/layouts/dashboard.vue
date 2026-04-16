@@ -14,6 +14,16 @@
 		collapsed.value = !collapsed.value
 	}
 
+	const links = [{
+		label: 'Dashboard',
+		icon: 'i-heroicons-home',
+		to: '/dashboard'
+	}, {
+		label: 'Notatki (Tiles)',
+		icon: 'i-heroicons-document-text',
+		to: '/dashboard/notes'
+	}]
+
 	defineExpose({
 		handleToggle,
 	})
@@ -21,7 +31,7 @@
 
 <template>
 	<UDashboardGroup>
-		<UDashboardSidebar collapsible />
+		<UDashboardSidebar :links="links" collapsible />
 		<slot />
 	</UDashboardGroup>
 </template>

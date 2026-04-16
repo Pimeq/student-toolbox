@@ -1,15 +1,14 @@
 <script setup lang="ts">
-	const user = useSupabaseUser()
+const user = useSupabaseUser()
 
-	if (user.value) {
-		await navigateTo("/dashboard")
-	}
+if (user.value) {
+	await navigateTo("/dashboard")
+}
 </script>
 
 <template>
 	<div>
-		<UPageHero
-			title="Student Toolbox"
+		<UPageHero title="Student Toolbox"
 			description="Aplikacja do notatek, plików, streszczeń, quizów i kalendarza w Twoich grupach. Zorganizuj swoje studia w jednym miejscu."
 			:links="[{
 				label: 'Zaloguj się',
@@ -22,12 +21,9 @@
 				size: 'xl',
 				color: 'neutral',
 				variant: 'subtle'
-			}]"
-		/>
+			}]" />
 
-		<UPageSection
-			id="features"
-			title="Wszystko czego potrzebujesz na studia"
+		<UPageSection id="features" title="Wszystko czego potrzebujesz na studia"
 			description="Rozpocznij naukę z solidnymi fundamentami. Aplikacja zawiera wszystkie niezbędne narzędzia do budowania bazy wiedzy ze swoją grupą."
 			:features="[{
 				icon: 'i-lucide-file-text',
@@ -45,15 +41,12 @@
 				icon: 'i-lucide-users',
 				title: 'Grupy Studenckie',
 				description: 'Organizuj się w grupy, wymieniaj materiałami i bądź na bieżąco z życiem Twojego kierunku.'
-			}]"
-		/>
+			}]" />
 
 		<UPageSection>
-			<UPageCTA
-				title="Gotowy na lepsze oceny?"
+			<UPageCTA title="Gotowy na lepsze oceny?"
 				description="Dołącz do innych studentów i zorganizuj swoją naukę z nami. Rozpocznij darmowe korzystanie już dziś."
-				variant="subtle"
-				:links="[{
+				variant="subtle" :links="[{
 					label: 'Rozpocznij',
 					to: '/register',
 					trailingIcon: 'i-lucide-arrow-right',
@@ -63,8 +56,7 @@
 					to: '/login',
 					color: 'neutral',
 					variant: 'outline'
-				}]"
-			/>
+				}]" />
 		</UPageSection>
 	</div>
 </template>
