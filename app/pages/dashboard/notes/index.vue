@@ -53,6 +53,10 @@ const isSelectionMode = ref(false)
 const selectedNoteIds = ref<string[]>([])
 const isBulkDeleting = ref(false)
 
+const openQuizForNote = (id: string) => {
+	router.push(`/dashboard/quiz?noteId=${id}`)
+}
+
 const selectedCount = computed(() => selectedNoteIds.value.length)
 const personalNotes = computed(() => notes.value.filter(note => note.visibility === 'personal'))
 const sharedNotes = computed(() => notes.value.filter(note => note.visibility === 'shared'))
@@ -216,17 +220,15 @@ const colorMap: Record<string, string> = {
 </script>
 
 <template>
-	<UDashboardPanel>
-		<template #header>
-			<UDashboardNavbar>
-				<template #leading>
-					<UDashboardSidebarCollapse />
-					<h1 class="text-xl font-bold font-sans">Notatki</h1>
-				</template>
-			</UDashboardNavbar>
-		</template>
+	<div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+		<!-- Na sztywno dodany header bez UDashboardPanel/Navbar -->
+		<header class="h-16 shrink-0 border-b border-gray-200 dark:border-gray-800 px-4 flex items-center gap-4 bg-white dark:bg-gray-900">
+			<!-- Poniższy element zakłada że używasz zewnętrznych layoutów. Jeśli chcesz ikonę "burgera", oto darmowa alternatywa -->
+			<UButton color="gray" variant="ghost" icon="i-heroicons-bars-3" class="lg:hidden" />
+			<h1 class="text-xl font-bold font-sans">Notatki</h1>
+		</header>
 
-		<UDashboardPanelContent class="bg-gray-50/50 dark:bg-gray-900/20 p-8 pt-6">
+		<div class="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/20 p-8 pt-6">
 			<div class="mb-5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-900/90 backdrop-blur p-3">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<div class="flex items-center gap-2">
@@ -298,7 +300,7 @@ const colorMap: Record<string, string> = {
 						<div
 							v-for="note in section.notes"
 							:key="note.id"
-							class="group relative h-[220px]"
+							class="group relative h-[250px]"
 						>
 							<UCard
 								:class="[
@@ -366,7 +368,7 @@ const colorMap: Record<string, string> = {
 								</template>
 
 								<div class="h-full w-full overflow-hidden">
-									<p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed whitespace-normal break-words font-sans overflow-hidden [display:-webkit-box] [-webkit-line-clamp:5] [-webkit-box-orient:vertical]">
+									<p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed whitespace-normal break-words font-sans overflow-hidden [display:-webkit-box] [-webkit-line-clamp:4] [-webkit-box-orient:vertical]">
 										{{ note.preview }}
 									</p>
 								</div>
@@ -377,16 +379,14 @@ const colorMap: Record<string, string> = {
 											<UIcon name="i-lucide-clock" class="w-3.5 h-3.5" />
 											{{ formatDate(note.updated_at) }}
 										</div>
-										<UButton
-											v-if="!isSelectionMode && note.is_owner"
-											icon="i-lucide-trash"
+										<div class="flex items-center gap-0.5"><UButton v-if="!isSelectionMode" icon="i-heroicons-sparkles" color="primary" variant="ghost" size="2xs" class="opacity-70 group-hover:opacity-100 transition-opacity z-10 shrink-0" @click.stop="openQuizForNote(note.id)" title="Wygeneruj quiz z tej notatki" /><UButton v-if="!isSelectionMode && note.is_owner" icon="i-lucide-trash"
 											color="red"
 											variant="ghost"
 											size="2xs"
 											class="opacity-70 group-hover:opacity-100 transition-opacity cursor-pointer z-10 shrink-0"
 											@click.stop="handleDeleteNote(note.id)"
 											title="Usuń notatkę"
-										/>
+										/></div>
 									</div>
 								</template>
 							</UCard>
@@ -394,7 +394,7 @@ const colorMap: Record<string, string> = {
 					</div>
 				</section>
 			</div>
-		</UDashboardPanelContent>
+		</div>
 <UModal v-model:open="isGroupModalOpen"><template #content>
 <UCard>
 <template #header>
@@ -415,14 +415,11 @@ Udostepnij notatke
 Nie masz dodanych zadnych grup uczelnianych!
 </div>
 <div v-else class="space-y-3 pl-1">
-<div v-for="group in userGroups" :key="group.id">
-<URadio
-v-model="selectedGroupId"
-name="note-group-selection"
-:value="group.id"
-:label="group.name + ' (' + group.type + ' - Rola: ' + group.role + ')'"
+<URadioGroup
+  v-model="selectedGroupId"
+  name="note-group-selection"
+  :items="userGroups.map(g => ({ value: g.id, label: g.name + ' (' + g.type + ' - Rola: ' + g.role + ')' }))"
 />
-</div>
 </div>
 </div>
 
@@ -434,7 +431,17 @@ name="note-group-selection"
 </template>
 </UCard>
 </template></UModal>
-</UDashboardPanel>
+
+
+
+	</div>
 </template>
+
+
+
+
+
+
+
 
 
