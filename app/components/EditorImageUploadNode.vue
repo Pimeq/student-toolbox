@@ -44,20 +44,11 @@ watch(file, async (newFile) => {
 
 <template>
   <NodeViewWrapper>
-    <UFileUpload
-      v-model="file"
-      accept="image/*"
-      label="Upload an image"
-      description="SVG, PNG, JPG or GIF (max. 2MB)"
-      :preview="false"
-      class="min-h-48"
-    >
+    <UFileUpload v-model="file" accept="image/*" label="Upload an image" description="SVG, PNG, JPG or GIF (max. 2MB)"
+      :preview="false" class="min-h-48">
       <template #leading>
-        <UAvatar
-          :icon="loading ? 'i-lucide-loader-circle' : 'i-lucide-image'"
-          size="xl"
-          :ui="{ icon: [loading && 'animate-spin'] }"
-        />
+        <UAvatar :icon="loading ? 'i-lucide-loader-circle' : 'i-lucide-image'" size="xl"
+          :ui="{ icon: [loading && 'animate-spin'] }" />
       </template>
     </UFileUpload>
   </NodeViewWrapper>

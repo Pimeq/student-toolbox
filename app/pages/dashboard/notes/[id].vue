@@ -158,7 +158,7 @@ const saveNote = async (exitAfterSave = false) => {
         lastSavedTitle.value = safeTitle
         lastSavedContent.value = currentContent
         hasUnsavedChanges.value = false
-        
+
         if (exitAfterSave) {
             router.push('/dashboard/notes')
         } else {
@@ -174,45 +174,49 @@ const saveNote = async (exitAfterSave = false) => {
 </script>
 
 <template>
-	<UDashboardPanel>
-		<template #header>
-			<UDashboardNavbar>
+    <UDashboardPanel>
+        <template #header>
+            <UDashboardNavbar>
                 <template #leading>
                     <UButton icon="i-lucide-arrow-left" color="gray" variant="ghost" @click="goBack" />
                     <span class="text-gray-300 dark:text-gray-700 mx-2">/</span>
-                    <UInput 
-                        v-model="title" 
-                        size="xl" 
-                        variant="none" 
-                        class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500" 
-                        autofocus
-                        @keydown.enter="$event.target.blur()"
-                    />
+                    <UInput v-model="title" size="xl" variant="none"
+                        class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500"
+                        autofocus @keydown.enter="$event.target.blur()" />
                 </template>
                 <template #right>
                     <div class="hidden md:flex gap-2 items-center">
-                        <span v-if="hasUnsavedChanges" class="text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane zmiany</span>
-                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save" @click="saveNote(false)">Zapisz notatkę</UButton>
-                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check" @click="saveNote(true)">Zapisz i Wyjdź</UButton>
+                        <span v-if="hasUnsavedChanges"
+                            class="text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane zmiany</span>
+                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save"
+                            @click="saveNote(false)">Zapisz notatkę</UButton>
+                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check"
+                            @click="saveNote(true)">Zapisz i Wyjdź</UButton>
                     </div>
                 </template>
             </UDashboardNavbar>
-		</template>
+        </template>
 
-		<UDashboardPanelContent class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col">
+        <UDashboardPanelContent class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col">
             <ClientOnly fallback-tag="div" fallback="Ładowanie edytora...">
                 <NotesEditor v-if="content !== undefined" v-model="content" />
             </ClientOnly>
 
             <div class="fixed bottom-4 right-4 z-[60]">
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur p-2 shadow-lg">
+                <div
+                    class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur p-2 shadow-lg">
                     <div class="flex items-center gap-2">
-                        <span v-if="hasUnsavedChanges" class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium px-1">Niezapisane zmiany</span>
-                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save" @click="saveNote(false)">Zapisz</UButton>
-                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check" @click="saveNote(true)">Zapisz i wyjdź</UButton>
+                        <span v-if="hasUnsavedChanges"
+                            class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium px-1">Niezapisane
+                            zmiany</span>
+                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save"
+                            @click="saveNote(false)">
+                            Zapisz</UButton>
+                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check"
+                            @click="saveNote(true)">Zapisz i wyjdź</UButton>
                     </div>
                 </div>
             </div>
-		</UDashboardPanelContent>
-	</UDashboardPanel>
+        </UDashboardPanelContent>
+    </UDashboardPanel>
 </template>
