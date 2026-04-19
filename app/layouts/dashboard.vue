@@ -1,4 +1,6 @@
 <script setup lang="ts">
+	import type { NavigationMenuItem } from "@nuxt/ui"
+
 	const supabase = useSupabaseClient()
 	const router = useRouter()
 
@@ -14,14 +16,55 @@
 		collapsed.value = !collapsed.value
 	}
 
+	const items: NavigationMenuItem[] = [
+		{
+			label: "Dashboard",
+			icon: "i-lucide-house",
+			to: "/dashboard",
+		},
+		{
+			label: "Calendar",
+			icon: "i-lucide-calendar",
+			to: "/dashboard/calendar",
+		},
+		{
+			label: "Notes",
+			icon: "i-lucide-notebook",
+			to: "/dashboard/notes",
+		},
+	]
+
+	const footerItems: NavigationMenuItem[] = [
+		{
+			label: "Settings",
+			icon: "i-lucide-settings",
+		},
+	]
+
 	defineExpose({
 		handleToggle,
 	})
 </script>
 
 <template>
+	<NuxtLoadingIndicator />
 	<UDashboardGroup>
-		<UDashboardSidebar collapsible />
+		<UDashboardSidebar collapsible>
+			<template #default="{ collapsed }">
+				<UNavigationMenu
+					:collapsed="collapsed"
+					:items="items"
+					orientation="vertical" />
+			</template>
+
+			<template #footer="{ collapsed }">
+				<UNavigationMenu
+					:collapsed="collapsed"
+					:items="footerItems"
+					orientation="vertical">
+				</UNavigationMenu>
+			</template>
+		</UDashboardSidebar>
 		<slot />
 	</UDashboardGroup>
 </template>
