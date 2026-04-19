@@ -10,6 +10,9 @@ import EditorLinkPopover from './EditorLinkPopover.vue'
 import Link from '@tiptap/extension-link'
 
 const value = defineModel<string>()
+const props = withDefaults(defineProps<{ readonly?: boolean }>(), {
+  readonly: false
+})
 
 const mapEditorItems = (editor: Editor, items: any[][], customHandlers: any) => {
   // simplified mapEditorItems for drag handle dropdown
@@ -332,21 +335,22 @@ const emojiItems: EditorEmojiMenuItem[] = gitHubEmojis.filter((emoji: any) => !e
       }),
       Link.configure({ openOnClick: false })
     ]" :handlers="customHandlers" placeholder="Pisz śmiało, naciśnij '/' aby wywołać command menu..."
+    :editable="!props.readonly"
     :ui="{ base: 'p-8 sm:px-16 py-13.5' }" class="w-full relative h-full flex flex-col">
-    <UEditorToolbar :editor="editor" :items="fixedToolbarItems"
+    <UEditorToolbar v-if="!props.readonly" :editor="editor" :items="fixedToolbarItems"
       class="border-b border-muted sticky top-0 inset-x-0 px-8 sm:px-16 py-3 z-50 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 overflow-x-auto shadow-sm">
       <template #link>
         <EditorLinkPopover :editor="editor" auto-open />
       </template>
     </UEditorToolbar>
 
-    <UEditorToolbar :editor="editor" :items="imageToolbarItems(editor)" layout="bubble" :should-show="({ editor, view }) => {
+    <UEditorToolbar v-if="!props.readonly" :editor="editor" :items="imageToolbarItems(editor)" layout="bubble" :should-show="({ editor, view }) => {
       return editor.isActive('image') && view.hasFocus()
     }" />
 
-    <UEditorSuggestionMenu :editor="editor" :items="suggestionItems" />
+    <UEditorSuggestionMenu v-if="!props.readonly" :editor="editor" :items="suggestionItems" />
 
-    <UEditorEmojiMenu :editor="editor" :items="emojiItems" />
+    <UEditorEmojiMenu v-if="!props.readonly" :editor="editor" :items="emojiItems" />
 
   </UEditor>
 </template>

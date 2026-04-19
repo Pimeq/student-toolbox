@@ -29,14 +29,14 @@ const removeLink = () => {
 
 <template>
   <UPopover v-model:open="isOpen">
-    <UButton color="gray" variant="ghost" icon="i-lucide-link" size="sm"
+    <UButton color="neutral" variant="ghost" icon="i-lucide-link" size="sm"
       :class="{ 'bg-gray-100 dark:bg-gray-800': editor.isActive('link') }" title="Dodaj link" />
 
-    <template #panel>
+    <template #content>
       <div class="p-2 flex items-center gap-2 w-64">
         <UInput v-model="url" placeholder="Wklej link..." class="flex-1" size="sm" @keydown.enter="setLink" />
         <UButton color="primary" size="sm" icon="i-lucide-check" @click="setLink" />
-        <UButton v-if="editor.isActive('link')" color="red" variant="soft" size="sm" icon="i-lucide-trash"
+        <UButton v-if="editor.isActive('link')" color="error" variant="soft" size="sm" icon="i-lucide-trash"
           @click="removeLink" />
       </div>
     </template>

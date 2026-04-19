@@ -107,7 +107,7 @@ async function generateQuiz() {
                             <UIcon name="i-heroicons-sparkles" class="text-primary" />
                             AI Quiz Generator
                         </h2>
-                        <UButton color="gray" variant="ghost" icon="i-heroicons-arrow-left"
+                        <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-left"
                             @click="router.push('/dashboard/notes')">Wróć do notatek</UButton>
                     </div>
                 </template>
@@ -134,7 +134,7 @@ async function generateQuiz() {
                         </div>
                     </template>
 
-                    <UAlert v-if="errorMsg" color="red" icon="i-heroicons-exclamation-triangle" :title="errorMsg"
+                    <UAlert v-if="errorMsg" color="error" icon="i-heroicons-exclamation-triangle" :title="errorMsg"
                         class="w-full max-w-md mt-4" />
                 </div>
             </UCard>
@@ -146,7 +146,7 @@ async function generateQuiz() {
                         <UIcon name="i-heroicons-academic-cap" class="w-8 h-8 text-primary" />
                         <h3 class="text-3xl font-bold">Twój Quiz</h3>
                     </div>
-                    <UButton color="gray" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">Nowy Quiz
+                    <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">Nowy Quiz
                     </UButton>
                 </div>
 
@@ -210,7 +210,7 @@ async function generateQuiz() {
                         </div>
                         <UProgress :value="score" :max="quiz.length" color="primary" class="max-w-md mx-auto my-4" />
                         <div class="flex items-center justify-center gap-4 mt-6">
-                            <UButton color="gray" variant="ghost" icon="i-heroicons-arrow-path"
+                            <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path"
                                 @click="() => { isQuizSubmitted = false; userAnswers = {} }">
                                 Spróbuj ponownie
                             </UButton>

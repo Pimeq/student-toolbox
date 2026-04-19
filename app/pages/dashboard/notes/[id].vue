@@ -1,7 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref, onMounted, onBeforeUnmount, onDeactivated, watch } from 'vue'
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useNotes } from '~/composables/useNotes'
+
+interface LoadedNotePayload {
+    id: string
+    title: string
+    content: string
+    visibility: 'personal' | 'shared'
+    group: { id: string; name: string; type: string } | null
+    isOwner: boolean
+    canEdit: boolean
+    sharedByLabel: string
+    uploadedBy: string
+    userRole: 'student' | 'instructor' | 'admin' | null
+    updatedAt: string
+}
 
 definePageMeta({
     layout: "dashboard",
@@ -9,7 +23,7 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { notes, getNote, getNoteContent, saveNote: saveNoteToStore, fetchNotes } = useNotes()
+const { notes, getNote, saveNote: saveNoteToStore, fetchNotes, fetchNoteById } = useNotes()
 
 const noteId = ref(String(route.params.id))
 const title = ref('Ładowanie...')
@@ -21,6 +35,32 @@ const lastSavedTitle = ref('')
 const lastSavedContent = ref('')
 const isSyncingTitleFromContent = ref(false)
 const isSyncingContentFromTitle = ref(false)
+const canEdit = ref(false)
+const accessMessage = ref('')
+const noteGroupLabel = ref('')
+const sharedByLabel = ref('')
+const isFetchPending = ref(false)
+const showFloatingActions = computed(() => canEdit.value)
+
+const releaseViewportLocks = () => {
+    if (import.meta.server) return
+
+    document.documentElement.classList.remove('overflow-hidden')
+    document.body.classList.remove('overflow-hidden')
+    document.documentElement.removeAttribute('data-scroll-locked')
+    document.body.removeAttribute('data-scroll-locked')
+
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+    document.body.style.position = ''
+    document.body.style.width = ''
+    document.body.style.paddingRight = ''
+    document.body.style.top = ''
+    document.body.style.left = ''
+    document.body.style.right = ''
+    document.body.style.touchAction = ''
+    document.body.style.removeProperty('--scrollbar-width')
+}
 
 const extractFirstH1 = (value: string) => {
     const match = value.match(/^#(?!#)\s+(.+)$/m)
@@ -46,54 +86,107 @@ const syncFirstH1WithTitle = (value: string, rawTitle: string) => {
     return `# ${safeTitle}\n\n${normalized.replace(/^\s+/, '')}`
 }
 
-onMounted(async () => {
-    // Jeśli lista w pamięci jest pusta (np. po refeshu) załaduj je z powrotem
-    if (notes.value.length === 0) {
-        await fetchNotes()
+const applyLoadedNote = (payload: LoadedNotePayload) => {
+    title.value = payload.title || 'Nowa Notatka'
+    content.value = payload.content || ''
+    canEdit.value = payload.canEdit
+    sharedByLabel.value = payload.sharedByLabel
+    noteGroupLabel.value = payload.group ? `${payload.group.name} (${payload.group.type})` : 'Prywatna'
+
+    const h1Title = extractFirstH1(content.value)
+    if (h1Title) {
+        title.value = h1Title
+    } else if (canEdit.value && content.value !== undefined) {
+        content.value = syncFirstH1WithTitle(content.value, title.value)
     }
 
-    // Pierwsze wejście potrafi zderzyć się z opóźnionym stanem auth/listy.
-    // Retry jednorazowy stabilizuje pobieranie notatki bez ręcznego odświeżania.
-    let note = getNote(noteId.value)
-    if (!note) {
-        await fetchNotes()
-        note = getNote(noteId.value)
+    const localNote = getNote(payload.id)
+    if (localNote) {
+        localNote.title = title.value
+        localNote.content = content.value || ''
+        localNote.visibility = payload.visibility
+        localNote.group_name = payload.group?.name || null
+        localNote.group_type = payload.group?.type as typeof localNote.group_type
+        localNote.can_edit = payload.canEdit
+        localNote.shared_by_label = payload.sharedByLabel
+        localNote.user_role = payload.userRole
+        localNote.is_owner = payload.isOwner
     }
 
-    if (note) {
-        title.value = note.title
+    lastSavedTitle.value = title.value
+    lastSavedContent.value = content.value || ''
+    hasUnsavedChanges.value = false
+    accessMessage.value = ''
+}
 
-        // Zawsze bierz świeżą treść ze Storage, żeby UI nie trzymał starego cache.
-        const remoteContent = await getNoteContent(noteId.value)
-        const resolvedContent = remoteContent !== null ? remoteContent : (note.content || '')
-        content.value = resolvedContent
-        note.content = resolvedContent
+const setErrorState = (message: string) => {
+    title.value = 'Brak dostepu do notatki'
+    content.value = 'Ta notatka nie jest dostepna dla Twojego konta.'
+    canEdit.value = false
+    accessMessage.value = message
+    noteGroupLabel.value = ''
+    sharedByLabel.value = ''
+    lastSavedTitle.value = title.value
+    lastSavedContent.value = content.value || ''
+    hasUnsavedChanges.value = false
+}
 
-        const h1Title = extractFirstH1(resolvedContent)
-        if (h1Title) {
-            title.value = h1Title
-            note.title = h1Title
-        } else {
-            const normalizedContent = syncFirstH1WithTitle(resolvedContent, title.value)
-            content.value = normalizedContent
-            note.content = normalizedContent
+const loadNote = async () => {
+    isLoading.value = true
+    noteId.value = String(route.params.id)
+    isFetchPending.value = true
+
+    try {
+        await fetchNotes()
+        const payload = await fetchNoteById(noteId.value)
+
+        if (!payload) {
+            setErrorState('Nie udalo sie zaladowac danych notatki.')
+            return
         }
 
-        lastSavedTitle.value = title.value
-        lastSavedContent.value = content.value || ''
-        hasUnsavedChanges.value = false
-    } else {
-        title.value = 'Nie znaleziono pliku'
-        content.value = 'Notatka uległa zniszczeniu lub została usunięta.'
-        lastSavedTitle.value = title.value
-        lastSavedContent.value = content.value || ''
-        hasUnsavedChanges.value = false
+        applyLoadedNote(payload)
+    } catch (error: any) {
+        console.error('Blad ladowania notatki:', error)
+        
+        const message = error.message || ''
+        if (message.includes('Nie masz dostępu') || message.includes('Brak autoryzacji')) {
+            setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
+        } else if (message.includes('nie istnieje') || message.includes('Nie znaleziono')) {
+            setErrorState('Notatka nie istnieje albo zostala usunieta.')
+        } else {
+            setErrorState(`Wystapil blad podczas ladowania notatki: ${message}`)
+        }
+    } finally {
+        isLoading.value = false
+        isFetchPending.value = false
     }
-    isLoading.value = false
+}
+
+onMounted(async () => {
+    releaseViewportLocks()
+    await loadNote()
+})
+
+onBeforeRouteLeave(() => {
+    releaseViewportLocks()
+})
+
+onBeforeUnmount(() => {
+    releaseViewportLocks()
+})
+
+onDeactivated(() => {
+    releaseViewportLocks()
+})
+
+watch(() => route.params.id, async (newId, oldId) => {
+    if (String(newId) === String(oldId)) return
+    await loadNote()
 })
 
 watch(content, (newContent) => {
-    if (isLoading.value || newContent === undefined) return
+    if (isLoading.value || !canEdit.value || newContent === undefined) return
 
     if (isSyncingContentFromTitle.value) {
         isSyncingContentFromTitle.value = false
@@ -108,7 +201,7 @@ watch(content, (newContent) => {
 })
 
 watch(title, (newTitle) => {
-    if (isLoading.value || content.value === undefined) return
+    if (isLoading.value || !canEdit.value || content.value === undefined) return
 
     if (isSyncingTitleFromContent.value) {
         isSyncingTitleFromContent.value = false
@@ -123,7 +216,7 @@ watch(title, (newTitle) => {
 })
 
 watch([content, title], () => {
-    if (isLoading.value) return
+    if (isLoading.value || !canEdit.value) return
 
     const safeTitle = title.value.trim() || 'Nowa Notatka'
     const safeContent = content.value || ''
@@ -131,11 +224,23 @@ watch([content, title], () => {
 })
 
 const goBack = async () => {
-    await saveNote(true)
+    if (canEdit.value && hasUnsavedChanges.value) {
+        await saveNote(true)
+        return
+    }
+
+    router.push('/dashboard/notes')
 }
 
 const saveNote = async (exitAfterSave = false) => {
     try {
+        if (!canEdit.value) {
+            if (exitAfterSave) {
+                router.push('/dashboard/notes')
+            }
+            return
+        }
+
         if (isSaving.value) return
         isSaving.value = true
 
@@ -178,41 +283,55 @@ const saveNote = async (exitAfterSave = false) => {
         <template #header>
             <UDashboardNavbar>
                 <template #leading>
-                    <UButton icon="i-lucide-arrow-left" color="gray" variant="ghost" @click="goBack" />
+                    <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" @click="goBack" />
                     <span class="text-gray-300 dark:text-gray-700 mx-2">/</span>
                     <UInput v-model="title" size="xl" variant="none"
                         class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500"
-                        autofocus @keydown.enter="$event.target.blur()" />
+                        autofocus :disabled="!canEdit" @keydown.enter="$event.target.blur()" />
                 </template>
                 <template #right>
                     <div class="hidden md:flex gap-2 items-center">
-                        <span v-if="hasUnsavedChanges"
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">{{ noteGroupLabel }}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Udostepnil: {{ sharedByLabel }}</span>
+                        <span v-if="!canEdit" class="text-xs text-blue-600 dark:text-blue-400 font-medium">Tryb tylko do odczytu</span>
+                        <span v-if="canEdit && hasUnsavedChanges"
                             class="text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane zmiany</span>
-                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save"
+                        <UButton v-if="canEdit" :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-save"
                             @click="saveNote(false)">Zapisz notatkę</UButton>
-                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check"
+                        <UButton v-if="canEdit" :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-check"
                             @click="saveNote(true)">Zapisz i Wyjdź</UButton>
                     </div>
                 </template>
             </UDashboardNavbar>
         </template>
 
-        <UDashboardPanelContent class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col">
-            <ClientOnly fallback-tag="div" fallback="Ładowanie edytora...">
-                <NotesEditor v-if="content !== undefined" v-model="content" />
+        <UDashboardPanelContent class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col pb-24 md:pb-0">
+            <div v-if="isLoading || isFetchPending" class="flex-1 flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
+                <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
+                <span>Ladowanie notatki...</span>
+            </div>
+
+            <div v-else-if="accessMessage" class="flex-1 flex items-center justify-center p-6">
+                <UAlert color="warning" variant="soft" icon="i-lucide-shield-alert" :title="accessMessage"
+                    description="Mozesz wrocic do listy notatek i wybrac inna pozycje." />
+            </div>
+
+            <ClientOnly v-else fallback-tag="div" fallback="Ladowanie edytora...">
+                <NotesEditor v-if="content !== undefined" v-model="content" :readonly="!canEdit" />
             </ClientOnly>
 
-            <div class="fixed bottom-4 right-4 z-[60]">
+            <div v-if="showFloatingActions" data-note-mobile-actions
+                class="md:hidden sticky bottom-0 z-20 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-white via-white/95 to-transparent dark:from-gray-900 dark:via-gray-900/95 dark:to-transparent">
                 <div
                     class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur p-2 shadow-lg">
                     <div class="flex items-center gap-2">
                         <span v-if="hasUnsavedChanges"
                             class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium px-1">Niezapisane
                             zmiany</span>
-                        <UButton :loading="isSaving" color="gray" variant="solid" icon="i-lucide-save"
+                        <UButton :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-save"
                             @click="saveNote(false)">
                             Zapisz</UButton>
-                        <UButton :loading="isSaving" color="black" variant="solid" icon="i-lucide-check"
+                        <UButton :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-check"
                             @click="saveNote(true)">Zapisz i wyjdź</UButton>
                     </div>
                 </div>

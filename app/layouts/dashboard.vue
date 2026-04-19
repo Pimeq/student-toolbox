@@ -1,4 +1,5 @@
 <script setup lang="ts">
+	const route = useRoute()
 	const supabase = useSupabaseClient()
 	const router = useRouter()
 
@@ -26,6 +27,34 @@
 
 	defineExpose({
 		handleToggle,
+	})
+
+	const releaseViewportLocks = () => {
+		if (import.meta.server) return
+
+		document.documentElement.classList.remove('overflow-hidden')
+		document.body.classList.remove('overflow-hidden')
+		document.documentElement.removeAttribute('data-scroll-locked')
+		document.body.removeAttribute('data-scroll-locked')
+
+		document.documentElement.style.overflow = ''
+		document.body.style.overflow = ''
+		document.body.style.position = ''
+		document.body.style.width = ''
+		document.body.style.paddingRight = ''
+		document.body.style.top = ''
+		document.body.style.left = ''
+		document.body.style.right = ''
+		document.body.style.touchAction = ''
+		document.body.style.removeProperty('--scrollbar-width')
+	}
+
+	onMounted(() => {
+		releaseViewportLocks()
+	})
+
+	watch(() => route.fullPath, () => {
+		releaseViewportLocks()
 	})
 </script>
 
