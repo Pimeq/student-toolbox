@@ -1543,8 +1543,8 @@ watch(showEventModal, (open) => {
 
           <p v-if="eventActionError" class="modal-error">{{ eventActionError }}</p>
 
-          <div class="modal-actions">
-            <button class="btn-delete" :disabled="!canDeleteSelectedEvent" @click="deleteEvent">Usuń event</button>
+          <div v-if="canDeleteSelectedEvent" class="modal-actions">
+            <button class="btn-delete" @click="deleteEvent">Usuń event</button>
             <button class="btn-close" @click="isEditingEvent = !isEditingEvent">
               {{ isEditingEvent ? 'Podgląd' : 'Edytuj' }}
             </button>
