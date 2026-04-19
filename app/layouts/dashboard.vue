@@ -47,6 +47,7 @@
 </script>
 
 <template>
+	<NuxtLoadingIndicator />
 	<UDashboardGroup>
 		<UDashboardSidebar collapsible>
 			<template #default="{ collapsed }">
