@@ -148,7 +148,7 @@ const loadNote = async () => {
         applyLoadedNote(payload)
     } catch (error: any) {
         console.error('Blad ladowania notatki:', error)
-        
+
         const message = error.message || ''
         if (message.includes('Nie masz dostępu') || message.includes('Brak autoryzacji')) {
             setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
@@ -280,33 +280,34 @@ const saveNote = async (exitAfterSave = false) => {
 
 <template>
     <UDashboardPanel>
-        <template #header>
-            <UDashboardNavbar>
-                <template #leading>
-                    <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" @click="goBack" />
-                    <span class="text-gray-300 dark:text-gray-700 mx-2">/</span>
-                    <UInput v-model="title" size="xl" variant="none"
-                        class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500"
-                        autofocus :disabled="!canEdit" @keydown.enter="$event.target.blur()" />
-                </template>
-                <template #right>
-                    <div class="hidden md:flex gap-2 items-center">
-                        <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">{{ noteGroupLabel }}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Udostepnil: {{ sharedByLabel }}</span>
-                        <span v-if="!canEdit" class="text-xs text-blue-600 dark:text-blue-400 font-medium">Tryb tylko do odczytu</span>
-                        <span v-if="canEdit && hasUnsavedChanges"
-                            class="text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane zmiany</span>
-                        <UButton v-if="canEdit" :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-save"
-                            @click="saveNote(false)">Zapisz notatkę</UButton>
-                        <UButton v-if="canEdit" :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-check"
-                            @click="saveNote(true)">Zapisz i Wyjdź</UButton>
-                    </div>
-                </template>
-            </UDashboardNavbar>
-        </template>
+        <UDashboardNavbar>
+            <template #leading>
+                <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" @click="goBack" />
+                <span class="text-gray-300 dark:text-gray-700 mx-2">/</span>
+                <UInput v-model="title" size="xl" variant="none"
+                    class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500"
+                    autofocus :disabled="!canEdit" @keydown.enter="$event.target.blur()" />
+            </template>
+            <template #right>
+                <div class="flex gap-2 items-center">
+                    <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 font-medium">{{
+                        noteGroupLabel }}</span>
+                    <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 font-medium">Udostepnil: {{
+                        sharedByLabel }}</span>
+                    <span v-if="!canEdit"
+                        class="hidden sm:inline text-xs text-blue-600 dark:text-blue-400 font-medium">Tryb tylko do
+                        odczytu</span>
+                    <span v-if="canEdit && hasUnsavedChanges"
+                        class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane
+                        zmiany</span>
+                </div>
+            </template>
+        </UDashboardNavbar>
 
-        <UDashboardPanelContent class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col pb-24 md:pb-0">
-            <div v-if="isLoading || isFetchPending" class="flex-1 flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
+        <UDashboardPanelContent
+            class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col pb-24 md:pb-0">
+            <div v-if="isLoading || isFetchPending"
+                class="flex-1 flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
                 <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
                 <span>Ladowanie notatki...</span>
             </div>
@@ -319,23 +320,6 @@ const saveNote = async (exitAfterSave = false) => {
             <ClientOnly v-else fallback-tag="div" fallback="Ladowanie edytora...">
                 <NotesEditor v-if="content !== undefined" v-model="content" :readonly="!canEdit" />
             </ClientOnly>
-
-            <div v-if="showFloatingActions" data-note-mobile-actions
-                class="md:hidden sticky bottom-0 z-20 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-white via-white/95 to-transparent dark:from-gray-900 dark:via-gray-900/95 dark:to-transparent">
-                <div
-                    class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur p-2 shadow-lg">
-                    <div class="flex items-center gap-2">
-                        <span v-if="hasUnsavedChanges"
-                            class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium px-1">Niezapisane
-                            zmiany</span>
-                        <UButton :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-save"
-                            @click="saveNote(false)">
-                            Zapisz</UButton>
-                        <UButton :loading="isSaving" color="neutral" variant="solid" icon="i-lucide-check"
-                            @click="saveNote(true)">Zapisz i wyjdź</UButton>
-                    </div>
-                </div>
-            </div>
         </UDashboardPanelContent>
     </UDashboardPanel>
 </template>

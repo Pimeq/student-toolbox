@@ -1,7 +1,9 @@
 ﻿<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNotes } from '~/composables/useNotes'
+import { useQuizGeneration } from '~/composables/useQuizGeneration'
+import { useSupabaseClient } from '#imports'
 
 definePageMeta({
     layout: 'dashboard'
@@ -9,97 +11,77 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { getNoteContent, fetchNotes } = useNotes()
+const supabase = useSupabaseClient()
+const { getNoteContent, fetchNotes, notes } = useNotes()
 
-const noteId = route.query.noteId as string | undefined
-const fileText = ref<string | null>(null)
+const noteId = route.params.id as string
 const questionCount = ref<number>(5)
-const loading = ref(false)
-const errorMsg = ref<string | null>(null)
 
-type QuizQuestion = {
-    question: string
-    answers: string[]
-    correct: number
-}
-const quiz = ref<QuizQuestion[]>([])
-const userAnswers = ref<Record<number, number>>({})
-const isQuizSubmitted = ref(false)
+const currentNote = computed(() => notes.value.find(n => n.id === noteId))
+const noteTitle = computed(() => currentNote.value?.title || 'Nieznana notatka')
 
-const score = computed(() => {
-    let correctCount = 0
-    quiz.value.forEach((q, i) => {
-        if (userAnswers.value[i] === q.correct) correctCount++
-    })
-    return correctCount
-})
+const { 
+    quiz, userAnswers, isQuizSubmitted, quizLoading, errorMsg, score, generateQuiz, loadQuiz 
+} = useQuizGeneration()
 
-onMounted(async () => {
-    // Load the note based on the query parameter
-    if (!noteId) {
-        errorMsg.value = "Nie wybrano notatki. Wróć do widoku notatek, aby wygenerować quiz."
-        return
-    }
-
-    try {
-        loading.value = true
+const { data: fileText, pending: notePending, error: noteError } = await useAsyncData(
+    `note-content-${noteId}`, 
+    async () => {
+        if (!noteId) throw new Error("Nie wybrano notatki.")
         let content = await getNoteContent(noteId)
-        // If content isn't locally cached, trigger a fetch.
         if (!content) {
             await fetchNotes()
             content = await getNoteContent(noteId)
         }
-
-        if (content) {
-            fileText.value = content
-        } else {
-            errorMsg.value = "Nie udało się załadować treści notatki."
-        }
-    } catch (err) {
-        console.error(err)
-        errorMsg.value = "Wystąpił błąd podczas ładowania notatki."
-    } finally {
-        loading.value = false
+        if (!content) throw new Error("Nie udało się załadować treści notatki.")
+        return content
     }
-})
+)
 
-async function generateQuiz() {
-    if (!fileText.value || !fileText.value.trim()) {
-        errorMsg.value = "Treść notatki jest pusta."
-        return
+const { data: savedQuizzes, pending: quizzesLoading, refresh: refreshQuizzes } = await useAsyncData(
+    `saved-quizzes-${noteId}`,
+    async () => {
+        const { data, error } = await supabase
+            .from('files')
+            .select('*')
+            .eq('file_type', 'quiz')
+            .ilike('name', `${noteId}:::%`) 
+            .order('created_at', { ascending: false })
+            
+        if (error) throw error
+        return data || []
     }
+)
 
-    loading.value = true
-    errorMsg.value = null
-    quiz.value = []
-    userAnswers.value = {}
-    isQuizSubmitted.value = false
-
-    try {
-        const res = await $fetch<{ quiz: QuizQuestion[] }>("/api/generate-quiz", {
-            method: "POST",
-            body: {
-                text: fileText.value,
-                questionCount: questionCount.value,
-            },
-        })
-
-        if (res && res.quiz && res.quiz.length > 0) {
-            quiz.value = res.quiz
-        } else {
-            errorMsg.value = "Zbyt mało treści do wygenerowania quizu."
+const handleGenerate = async () => {
+    if (fileText.value) {
+        try {
+            await generateQuiz(fileText.value, questionCount.value, noteId, noteTitle.value)
+            await refreshQuizzes() 
+        } catch (e) {
+            console.error("Wystąpił błąd:", e)
         }
-    } catch (err: any) {
-        errorMsg.value = err.data?.message || "Nie udało się wygenerować quizu."
-    } finally {
-        loading.value = false
+    } else {
+        errorMsg.value = "Nie można załadować treści notatki."
     }
 }
+
+const loadExistingQuiz = async (savedQuiz: any) => {
+    await loadQuiz(savedQuiz)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const getDisplayName = (dbName: string) => {
+    const parts = dbName.split(':::')
+    return parts.length > 1 ? parts[parts.length - 1] : dbName
+}
+
 </script>
 
 <template>
     <div class="flex-1 w-full h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/20">
         <UContainer class="py-8 space-y-8 max-w-4xl">
+            
             <UCard v-if="quiz.length === 0">
                 <template #header>
                     <div class="flex items-center justify-between">
@@ -108,45 +90,77 @@ async function generateQuiz() {
                             AI Quiz Generator
                         </h2>
                         <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-left"
-                            @click="router.push('/dashboard/notes')">Wróć do notatek</UButton>
+                            @click="router.push('/dashboard/quiz')">Wróć</UButton>
                     </div>
                 </template>
 
                 <div class="flex flex-col items-center justify-center my-10 space-y-6">
-                    <!-- If file loaded successfully, show the generator, otherwise show error -->
-                    <template v-if="!errorMsg || fileText">
+                    <div v-if="notePending || quizLoading" class="text-gray-500 flex items-center gap-2">
+                        <UIcon name="i-heroicons-arrow-path" class="animate-spin w-5 h-5" />
+                        Przetwarzanie...
+                    </div>
+                    
+                    <UAlert v-else-if="noteError" color="error" icon="i-heroicons-exclamation-triangle" :title="noteError.message" />
+
+                    <template v-else-if="fileText">
                         <div class="text-center space-y-2">
-                            <h3 class="text-xl font-medium">Wygeneruj quiz z zaznaczonej notatki</h3>
-                            <p class="text-gray-500 max-w-md mx-auto">Sztuczna inteligencja przeanalizuje treść Twojej
-                                notatki i zapyta Cię o najważniejsze zagadnienia.</p>
+                            <h3 class="text-xl font-medium">Wygeneruj nowy quiz</h3>
+                            <p class="text-gray-500 max-w-md mx-auto">Sztuczna inteligencja przeanalizuje Twoją notatkę i przygotuje zestaw pytań.</p>
                         </div>
 
                         <div class="flex flex-col sm:flex-row gap-4 items-center justify-center w-full max-w-sm mt-4">
                             <UFormField label="Liczba pytań" class="w-full flex-1">
-                                <UInput v-model="questionCount" type="number" min="1" max="20"
-                                    icon="i-heroicons-list-bullet" />
+                                <UInput v-model="questionCount" type="number" min="1" max="20" icon="i-heroicons-list-bullet" />
                             </UFormField>
 
-                            <UButton @click="generateQuiz" :loading="loading" :disabled="!fileText"
-                                icon="i-heroicons-cpu-chip" size="lg" class="mt-6 w-full sm:w-auto">
-                                {{ loading ? 'Generowanie...' : 'Generuj' }}
+                            <UButton @click="handleGenerate" :loading="quizLoading" :disabled="!fileText" icon="i-heroicons-cpu-chip" size="lg" class="mt-6 w-full sm:w-auto">
+                                Generuj
                             </UButton>
                         </div>
                     </template>
 
-                    <UAlert v-if="errorMsg" color="error" icon="i-heroicons-exclamation-triangle" :title="errorMsg"
-                        class="w-full max-w-md mt-4" />
+                    <UAlert v-if="errorMsg" color="error" icon="i-heroicons-exclamation-triangle" :title="errorMsg" class="w-full max-w-md mt-4" />
                 </div>
             </UCard>
 
-            <!-- Quiz Interface after generation -->
+            <UCard v-if="quiz.length === 0 && savedQuizzes && savedQuizzes.length > 0" class="border-t-4 border-primary-500">
+                <template #header>
+                    <div class="flex items-center gap-2">
+                        <UIcon name="i-heroicons-clock" class="text-primary w-6 h-6" />
+                        <h3 class="text-xl font-bold">Zapisane quizy dla tej notatki</h3>
+                    </div>
+                </template>
+
+                <div v-if="quizzesLoading" class="p-4 text-center text-gray-500">
+                    Ładowanie listy quizów...
+                </div>
+
+                <div v-else class="grid gap-3">
+                    <div v-for="saved in savedQuizzes" :key="saved.id" 
+                        class="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl hover:border-primary-500 transition-colors group">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-primary-50 dark:bg-primary-900/30 rounded-lg">
+                                <UIcon name="i-heroicons-document-text" class="text-primary w-5 h-5" />
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="font-semibold">{{ getDisplayName(saved.name) }}</span>
+                                <span class="text-xs text-gray-500">{{ new Date(saved.created_at).toLocaleDateString() }}</span>
+                            </div>
+                        </div>
+                        <UButton color="primary" variant="subtle" icon="i-heroicons-play" @click="loadExistingQuiz(saved)">
+                            Rozwiąż
+                        </UButton>
+                    </div>
+                </div>
+            </UCard>
+
             <div v-if="quiz.length > 0" class="space-y-6">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <UIcon name="i-heroicons-academic-cap" class="w-8 h-8 text-primary" />
                         <h3 class="text-3xl font-bold">Twój Quiz</h3>
                     </div>
-                    <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">Nowy Quiz
+                    <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">Zamknij i wróć
                     </UButton>
                 </div>
 
@@ -208,15 +222,14 @@ async function generateQuiz() {
                             :class="score === quiz.length ? 'text-green-500' : (score > quiz.length / 2 ? 'text-primary' : 'text-red-500')">
                             {{ score }} / {{ quiz.length }}
                         </div>
-                        <UProgress :value="score" :max="quiz.length" color="primary" class="max-w-md mx-auto my-4" />
                         <div class="flex items-center justify-center gap-4 mt-6">
                             <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path"
                                 @click="() => { isQuizSubmitted = false; userAnswers = {} }">
                                 Spróbuj ponownie
                             </UButton>
                             <UButton color="primary" variant="soft" icon="i-lucide-arrow-left"
-                                @click="router.push('/dashboard/notes')">
-                                Wróć do notatek
+                                @click="router.push('/dashboard/quiz')">
+                                Wróć do listy quizów
                             </UButton>
                         </div>
                     </div>

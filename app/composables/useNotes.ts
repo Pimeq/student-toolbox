@@ -57,7 +57,7 @@ const formatUploaderLabel = (isOwner: boolean, row: NoteUploaderInfoRow | null, 
 export const useNotes = () => {
   const notes = useState<NoteItem[]>('user-notes', () => [])
   const membershipRoleByGroup = useState<Record<string, MembershipRole>>('membership-role-by-group', () => ({}))
-  
+
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
 
@@ -113,7 +113,7 @@ export const useNotes = () => {
           role: membership.role
         }
       })
-        .filter(Boolean) as GroupWithRole[]
+      .filter(Boolean) as GroupWithRole[]
   }
 
   const extractPreview = (content: string) => {
@@ -247,7 +247,7 @@ export const useNotes = () => {
         .select('id, name, type')
         .eq('id', note.group_id)
         .maybeSingle<{ id: string; name: string; type: string }>()
-        
+
       if (groupRow) group = groupRow
     } else if (!isOwner) {
       throw new Error('Nie masz dostępu do tej notatki')
@@ -268,7 +268,7 @@ export const useNotes = () => {
     let sharedByLabel = isOwner ? 'Ty' : `Uzytkownik ${note.uploaded_by.slice(0, 8)}`
     const { data: uploaderRows, error: uploaderError } = await (supabase as any)
       .rpc('get_note_uploader_info', { note_object_id: note.object_id })
-      
+
     if (!uploaderError && uploaderRows?.length) {
       sharedByLabel = formatUploaderLabel(isOwner, uploaderRows[0] as NoteUploaderInfoRow, note.uploaded_by)
     }
@@ -359,8 +359,7 @@ export const useNotes = () => {
     const data = [...mergedByObjectId.values()].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
-    
-    // Mapujemy z bazy na lokalny format
+
     notes.value = data.map(dbFile => {
       const existingNote = existingById.get(dbFile.object_id)
       const isOwner = dbFile.uploaded_by === currentUserId
@@ -445,7 +444,6 @@ export const useNotes = () => {
 
       let text: string | null = null
 
-      // Signed URL + no-store ogranicza zwracanie starej wersji po szybkim przejściu na kafelki.
       const { data: signedData, error: signedError } = await supabase.storage
         .from('files')
         .createSignedUrl(storagePath, 60)
@@ -495,11 +493,10 @@ export const useNotes = () => {
 
     const defaultTitle = title?.trim() || 'Nowa Notatka'
     const defaultContent = `# ${defaultTitle}\n\nZacznij pisać tutaj...`
-    
+
     const fileBlob = new Blob([defaultContent], { type: 'text/markdown' })
     const storagePath = `notes/${currentUserId}/${Date.now()}.md`
 
-    // Wrzucenie pliku-szablonu od razu do Storage
     const { data: storageData, error: storageError } = await supabase.storage
       .from('files')
       .upload(storagePath, fileBlob, {
@@ -537,7 +534,6 @@ export const useNotes = () => {
       throw dbError
     }
 
-    // Dodanie do lokalnego stanu z ID wygenerowanym przez serwer
     notes.value.unshift({
       id: objectId,
       database_id: dbData.id,
@@ -557,7 +553,7 @@ export const useNotes = () => {
       group_type: null,
       shared_by_label: 'Ty'
     })
-    
+
     return objectId
   }
 
@@ -596,7 +592,7 @@ export const useNotes = () => {
 
     const { error: storageError } = await supabase.storage
       .from('files')
-      .update(storagePath, fileBlob, {
+      .upload(storagePath, fileBlob, {
         contentType: 'text/markdown',
         cacheControl: '0',
         upsert: true
@@ -661,12 +657,12 @@ export const useNotes = () => {
     }
 
     const { data, error } = await supabase.storage.from('files').download(path)
-    
+
     if (error || !data) {
       console.error('Błąd pobierania Markdown z bucketu:', error)
       return null
     }
-    
+
     return await data.text()
   }
 
@@ -701,7 +697,7 @@ export const useNotes = () => {
 
     const { error: storageError } = await supabase.storage
       .from('files')
-      .update(storagePath, fileBlob, {
+      .upload(storagePath, fileBlob, {
         contentType: 'text/markdown',
         cacheControl: '0',
         upsert: true
@@ -744,21 +740,21 @@ export const useNotes = () => {
     if (noteToDelete.uploaded_by && noteToDelete.uploaded_by !== currentUserId) {
       throw new Error('Nie możesz usuwać notatki udostępnionej przez inną osobę.')
     }
-    
+
     // Usuń z tabeli public.files
     const { error: dbError } = await supabase
       .from('files')
       .delete()
       .eq('object_id', id)
-      
+
     if (dbError) {
       console.error('Błąd usuwania notatki z bazy:', dbError)
       throw dbError
     }
-    
+
     // Należy także usunąć plik ze storage bucketu (jeśli przechowujemy path lub objectId pasuje). 
     // W prawdziwym środowisku może do tego służyć Postgres Trigger na tabeli files lub osobne query.
-    
+
     // Usuń w stanie aplikacji
     notes.value = notes.value.filter(n => n.id !== id)
   }
