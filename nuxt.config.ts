@@ -21,4 +21,20 @@ export default defineNuxtConfig({
 			callback: "/confirm",
 		},
 	},
+
+	runtimeConfig: {
+		mistralApiKey: process.env.MISTRAL_API_KEY,
+	},
+	
+	vite: {
+		optimizeDeps: {
+			include: [
+				'@nuxt/ui > prosemirror-state',
+				'@nuxt/ui > prosemirror-transform',
+				'@nuxt/ui > prosemirror-model',
+				'@nuxt/ui > prosemirror-view',
+				'@nuxt/ui > prosemirror-gapcursor'
+			]
+		}
+	}
 })

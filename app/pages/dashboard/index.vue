@@ -1,35 +1,35 @@
 <script setup lang="ts">
-	const supabase = useSupabaseClient()
-	const user = useSupabaseUser()
-	//TODO:
-	//fetch user groups, if not any -> show signup dialog
-	//some side panel with notes events and whatnot
+const supabase = useSupabaseClient()
+const user = useSupabaseUser()
+//TODO:
+//fetch user groups, if not any -> show signup dialog
+//some side panel with notes events and whatnot
 
-	definePageMeta({
-		layout: "dashboard",
-	})
+definePageMeta({
+	layout: "dashboard",
+})
 
-	const { data: userGroups } = await useAsyncData(
-		"userGroups",
-		async () => {
-			if (!user.value) return []
+const { data: userGroups } = await useAsyncData(
+	"userGroups",
+	async () => {
+		if (!user.value) return []
 
-			const { data, error } = await supabase
-				.from("user_memberships")
-				.select("*")
-				.eq("user_id", user.value.sub)
-			if (error) throw error
-			return data ?? []
-		},
-		{
-			default: () => [],
-		},
-	)
+		const { data, error } = await supabase
+			.from("user_memberships")
+			.select("*")
+			.eq("user_id", user.value.sub)
+		if (error) throw error
+		return data ?? []
+	},
+	{
+		default: () => [],
+	},
+)
 
-	const { data: res } = await useAsyncData("bucket", async () => {
-		const { data } = await supabase.storage.from("files").list("generic")
-		return data
-	})
+const { data: res } = await useAsyncData("bucket", async () => {
+	const { data } = await supabase.storage.from("files").list("generic")
+	return data
+})
 </script>
 
 <template>
