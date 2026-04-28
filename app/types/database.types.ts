@@ -111,6 +111,7 @@ export type Database = {
 					id: number
 					starts_at: string | null
 					title: string
+						uploaded_by: string
 					updated_at: string
 				}
 				Insert: {
@@ -121,6 +122,7 @@ export type Database = {
 					id?: number
 					starts_at?: string | null
 					title: string
+						uploaded_by: string
 					updated_at?: string
 				}
 				Update: {
@@ -131,6 +133,7 @@ export type Database = {
 					id?: number
 					starts_at?: string | null
 					title?: string
+						uploaded_by?: string
 					updated_at?: string
 				}
 				Relationships: [

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-	const route = useRoute()
+	import type { NavigationMenuItem } from "@nuxt/ui"
+
 	const supabase = useSupabaseClient()
 	const router = useRouter()
 
@@ -15,15 +16,30 @@
 		collapsed.value = !collapsed.value
 	}
 
-	const links = [{
-		label: 'Dashboard',
-		icon: 'i-heroicons-home',
-		to: '/dashboard'
-	}, {
-		label: 'Notatki (Tiles)',
-		icon: 'i-heroicons-document-text',
-		to: '/dashboard/notes'
-	}]
+	const items: NavigationMenuItem[] = [
+		{
+			label: "Dashboard",
+			icon: "i-lucide-house",
+			to: "/dashboard",
+		},
+		{
+			label: "Calendar",
+			icon: "i-lucide-calendar",
+			to: "/dashboard/calendar",
+		},
+		{
+			label: "Notes",
+			icon: "i-lucide-notebook",
+			to: "/dashboard/notes",
+		},
+	]
+
+	const footerItems: NavigationMenuItem[] = [
+		{
+			label: "Settings",
+			icon: "i-lucide-settings",
+		},
+	]
 
 	defineExpose({
 		handleToggle,
@@ -59,8 +75,24 @@
 </script>
 
 <template>
+	<NuxtLoadingIndicator />
 	<UDashboardGroup>
-		<UDashboardSidebar :links="links" collapsible />
+		<UDashboardSidebar collapsible>
+			<template #default="{ collapsed }">
+				<UNavigationMenu
+					:collapsed="collapsed"
+					:items="items"
+					orientation="vertical" />
+			</template>
+
+			<template #footer="{ collapsed }">
+				<UNavigationMenu
+					:collapsed="collapsed"
+					:items="footerItems"
+					orientation="vertical">
+				</UNavigationMenu>
+			</template>
+		</UDashboardSidebar>
 		<slot />
 	</UDashboardGroup>
 </template>
