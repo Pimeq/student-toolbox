@@ -17,7 +17,7 @@ const { pending: loading, error } = await useAsyncData('quiz-notes-list', async 
     <UDashboardPanel>
         <UDashboardNavbar title="Twoje Quizy" />
 
-        <div class="p-6 space-y-8">
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-8">
             <header>
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Generator Quizów AI</h2>
                 <p class="text-gray-500 mt-1">Wybierz jedną ze swoich notatek, aby sprawdzić swoją wiedzę lub wygenerować nowy test.</p>
