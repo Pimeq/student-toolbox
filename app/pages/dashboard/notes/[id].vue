@@ -18,15 +18,15 @@ interface LoadedNotePayload {
 }
 
 definePageMeta({
-    layout: "dashboard",
+    layout: 'dashboard',
 })
 
 const route = useRoute()
 const router = useRouter()
-const { notes, getNote, saveNote: saveNoteToStore, fetchNotes, fetchNoteById } = useNotes()
+const { getNote, saveNote: saveNoteToStore, fetchNotes, fetchNoteById } = useNotes()
 
 const noteId = ref(String(route.params.id))
-const title = ref('Ładowanie...')
+const title = ref('Ladowanie...')
 const content = ref<string | undefined>(undefined)
 const isSaving = ref(false)
 const isLoading = ref(true)
@@ -40,7 +40,7 @@ const accessMessage = ref('')
 const noteGroupLabel = ref('')
 const sharedByLabel = ref('')
 const isFetchPending = ref(false)
-const showFloatingActions = computed(() => canEdit.value)
+const showFloatingActions = computed(() => canEdit.value && !isLoading.value && !isFetchPending.value && !accessMessage.value)
 
 const releaseViewportLocks = () => {
     if (import.meta.server) return
@@ -150,7 +150,7 @@ const loadNote = async () => {
         console.error('Blad ladowania notatki:', error)
 
         const message = error.message || ''
-        if (message.includes('Nie masz dostępu') || message.includes('Brak autoryzacji')) {
+        if (message.includes('Nie masz dostepu') || message.includes('Brak autoryzacji')) {
             setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
         } else if (message.includes('nie istnieje') || message.includes('Nie znaleziono')) {
             setErrorState('Notatka nie istnieje albo zostala usunieta.')
@@ -223,25 +223,14 @@ watch([content, title], () => {
     hasUnsavedChanges.value = safeTitle !== lastSavedTitle.value || safeContent !== lastSavedContent.value
 })
 
-const goBack = async () => {
-    if (canEdit.value && hasUnsavedChanges.value) {
-        await saveNote(true)
-        return
-    }
-
+const exitNote = () => {
     router.push('/dashboard/notes')
 }
 
-const saveNote = async (exitAfterSave = false) => {
+const saveNote = async () => {
     try {
-        if (!canEdit.value) {
-            if (exitAfterSave) {
-                router.push('/dashboard/notes')
-            }
-            return
-        }
+        if (!canEdit.value || isSaving.value) return
 
-        if (isSaving.value) return
         isSaving.value = true
 
         const safeTitle = title.value.trim() || 'Nowa Notatka'
@@ -264,14 +253,10 @@ const saveNote = async (exitAfterSave = false) => {
         lastSavedContent.value = currentContent
         hasUnsavedChanges.value = false
 
-        if (exitAfterSave) {
-            router.push('/dashboard/notes')
-        } else {
-            console.log('Zapisano notatke pomyślnie')
-        }
-    } catch (e) {
-        console.error('Wystąpił błąd podcas zapisywania:', e)
-        alert('Nie udało się zapisać notatki do Supabase.')
+        console.log('Zapisano notatke pomyslnie')
+    } catch (error) {
+        console.error('Wystapil blad podczas zapisywania:', error)
+        alert('Nie udalo sie zapisac notatki do Supabase.')
     } finally {
         isSaving.value = false
     }
@@ -282,44 +267,69 @@ const saveNote = async (exitAfterSave = false) => {
     <UDashboardPanel>
         <UDashboardNavbar>
             <template #leading>
-                <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" @click="goBack" />
-                <span class="text-gray-300 dark:text-gray-700 mx-2">/</span>
-                <UInput v-model="title" size="xl" variant="none"
-                    class="font-bold text-2xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors rounded-md w-full min-w-0 max-w-xl focus:ring-1 focus:ring-primary-500"
-                    autofocus :disabled="!canEdit" @keydown.enter="$event.target.blur()" />
+                <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" @click="exitNote" />
+                <span class="mx-2 text-gray-300 dark:text-gray-700">/</span>
+                <UInput
+                    v-model="title"
+                    size="xl"
+                    variant="none"
+                    class="w-full min-w-0 max-w-xl rounded-md text-2xl font-bold transition-colors hover:bg-gray-100 focus:ring-1 focus:ring-primary-500 dark:hover:bg-gray-800"
+                    autofocus
+                    :disabled="!canEdit"
+                    @keydown.enter="$event.target.blur()"
+                />
             </template>
             <template #right>
-                <div class="flex gap-2 items-center">
-                    <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 font-medium">{{
-                        noteGroupLabel }}</span>
-                    <span class="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 font-medium">Udostepnil: {{
-                        sharedByLabel }}</span>
-                    <span v-if="!canEdit"
-                        class="hidden sm:inline text-xs text-blue-600 dark:text-blue-400 font-medium">Tryb tylko do
-                        odczytu</span>
-                    <span v-if="canEdit && hasUnsavedChanges"
-                        class="hidden sm:inline text-xs text-amber-600 dark:text-amber-400 font-medium">Niezapisane
-                        zmiany</span>
+                <div class="flex items-center gap-2">
+                    <span class="hidden text-xs font-medium text-gray-500 dark:text-gray-400 lg:inline">{{ noteGroupLabel }}</span>
+                    <span class="hidden text-xs font-medium text-gray-500 dark:text-gray-400 lg:inline">Udostepnil: {{ sharedByLabel }}</span>
+                    <span v-if="!canEdit" class="hidden text-xs font-medium text-blue-600 dark:text-blue-400 sm:inline">Tryb tylko do odczytu</span>
+                    <span v-if="canEdit && hasUnsavedChanges" class="hidden text-xs font-medium text-amber-600 dark:text-amber-400 sm:inline">Niezapisane zmiany</span>
                 </div>
             </template>
         </UDashboardNavbar>
 
-        <UDashboardPanelContent
-            class="p-0 overflow-y-auto relative h-full bg-white dark:bg-gray-900 flex flex-col pb-24 md:pb-0">
-            <div v-if="isLoading || isFetchPending"
-                class="flex-1 flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
-                <UIcon name="i-lucide-loader-2" class="w-5 h-5 animate-spin" />
+        <UDashboardPanelContent class="relative flex h-full flex-col overflow-y-auto bg-white p-0 pb-24 dark:bg-gray-900">
+            <div v-if="isLoading || isFetchPending" class="flex flex-1 items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
+                <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
                 <span>Ladowanie notatki...</span>
             </div>
 
-            <div v-else-if="accessMessage" class="flex-1 flex items-center justify-center p-6">
-                <UAlert color="warning" variant="soft" icon="i-lucide-shield-alert" :title="accessMessage"
-                    description="Mozesz wrocic do listy notatek i wybrac inna pozycje." />
+            <div v-else-if="accessMessage" class="flex flex-1 items-center justify-center p-6">
+                <UAlert
+                    color="warning"
+                    variant="soft"
+                    icon="i-lucide-shield-alert"
+                    :title="accessMessage"
+                    description="Mozesz wrocic do listy notatek i wybrac inna pozycje."
+                />
             </div>
 
             <ClientOnly v-else fallback-tag="div" fallback="Ladowanie edytora...">
                 <NotesEditor v-if="content !== undefined" v-model="content" :readonly="!canEdit" />
             </ClientOnly>
+
+            <div v-if="showFloatingActions" class="fixed bottom-6 right-6 z-30 flex items-center gap-3">
+                <UButton
+                    color="neutral"
+                    variant="soft"
+                    size="lg"
+                    icon="i-lucide-x"
+                    @click="exitNote"
+                >
+                    Wyjdz
+                </UButton>
+                <UButton
+                    color="primary"
+                    size="lg"
+                    icon="i-lucide-save"
+                    :loading="isSaving"
+                    :disabled="isSaving || !hasUnsavedChanges"
+                    @click="saveNote"
+                >
+                    Zapisz
+                </UButton>
+            </div>
         </UDashboardPanelContent>
     </UDashboardPanel>
 </template>
