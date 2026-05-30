@@ -11,15 +11,6 @@ type DashboardMetric = {
 	tone: string
 }
 
-type DashboardGroup = {
-	id: string
-	name: string
-	type: GroupType
-	role: string
-	members: number
-	progress: number
-}
-
 type DashboardEvent = {
 	id: string
 	title: string
@@ -36,12 +27,19 @@ type DashboardActivity = {
 	kind: string
 }
 
+type ScheduleItem = {
+	id: string
+	subject: string
+	room: string
+	time: string
+	type: "lecture" | "lab" | "seminar"
+}
+
 type DashboardStats = {
 	materials: number
 	notes: number
 	summaries: number
 	quizzes: number
-	files: number
 }
 
 const user = useSupabaseUser()
@@ -55,90 +53,77 @@ const displayName = computed(() => {
 
 const groupMeta: Record<GroupType, { label: string; chip: string }> = {
 	university: { label: "Uniwersytet", chip: "chip-uni" },
-	faculty: { label: "Wydział", chip: "chip-fac" },
-	course: { label: "Kierunek", chip: "chip-course" },
+	faculty:    { label: "Wydział",     chip: "chip-fac" },
+	course:     { label: "Kierunek",    chip: "chip-course" },
+}
+
+const scheduleTypeLabel: Record<ScheduleItem["type"], string> = {
+	lecture: "Wykład",
+	lab:     "Laboratorium",
+	seminar: "Seminarium",
 }
 
 const dashboardHooks = async (): Promise<{
-	groups: DashboardGroup[]
-	events: DashboardEvent[]
+	events:     DashboardEvent[]
 	activities: DashboardActivity[]
-	stats: DashboardStats
+	schedule:   ScheduleItem[]
+	stats:      DashboardStats
 }> => ({
-	groups: [
-		{ id: "g-1", name: "Warsaw University of Technology", type: "university", role: "student", members: 1284, progress: 84 },
-		{ id: "g-2", name: "Wydział Elektroniki", type: "faculty", role: "student", members: 246, progress: 67 },
-		{ id: "g-3", name: "Informatyka", type: "course", role: "instructor", members: 58, progress: 73 },
-		{ id: "g-4", name: "Grupa 2137 - Informatyka", type: "course", role: "instructor", members: 11, progress: 56 },
-	],
 	events: [
-		{ id: "e-1", title: "Wykład z architektury systemów", date: "2026-05-02T10:15:00.000Z", group: "Informatyka", type: "course" },
-		{ id: "e-2", title: "Konsultacje do projektu", date: "2026-05-03T14:00:00.000Z", group: "Wydział Elektroniki", type: "faculty" },
-		{ id: "e-3", title: "Spotkanie organizacyjne roku", date: "2026-05-04T09:30:00.000Z", group: "Warsaw University of Technology", type: "university" },
+		{ id: "e-1", title: "Wykład z architektury systemów", date: "2026-05-02T10:15:00.000Z", group: "Informatyka",                    type: "course" },
+		{ id: "e-2", title: "Konsultacje do projektu",        date: "2026-05-03T14:00:00.000Z", group: "Wydział Elektroniki",             type: "faculty" },
+		{ id: "e-3", title: "Spotkanie organizacyjne roku",   date: "2026-05-04T09:30:00.000Z", group: "Warsaw University of Technology", type: "university" },
+		{ id: "e-4", title: "Oddanie projektu zaliczeniowego", date: "2026-05-09T23:59:00.000Z", group: "Informatyka",                   type: "course" },
+		{ id: "e-5", title: "Egzamin z sieci komputerowych",  date: "2026-05-14T09:00:00.000Z", group: "Informatyka",                    type: "course" },
 	],
 	activities: [
-		{ id: "a-1", title: "Notatka", detail: "Dodano skrót z wykładu.", time: "2 min temu", kind: "note" },
-		{ id: "a-2", title: "Quiz", detail: "Test powtórkowy zaliczony.", time: "18 min temu", kind: "quiz" },
-		{ id: "a-3", title: "Plik", detail: "Wgrano PDF z materiałami.", time: "1 h temu", kind: "file" },
-		{ id: "a-4", title: "Streszczenie", detail: "Podsumowanie seminarium gotowe.", time: "wczoraj", kind: "summary" },
+		{ id: "a-1", title: "Notatka",      detail: "Dodano skrót z wykładu.",          time: "2 min temu",  kind: "note" },
+		{ id: "a-2", title: "Quiz",         detail: "Test powtórkowy zaliczony.",        time: "18 min temu", kind: "quiz" },
+		{ id: "a-3", title: "Plik",         detail: "Wgrano PDF z materiałami.",         time: "1 h temu",    kind: "file" },
+		{ id: "a-4", title: "Streszczenie", detail: "Podsumowanie seminarium gotowe.",   time: "wczoraj",     kind: "summary" },
+		{ id: "a-5", title: "Notatka",      detail: "Opracowanie z ćwiczeń.",            time: "wczoraj",     kind: "note" },
+		{ id: "a-6", title: "Quiz",         detail: "Próbny test z algorytmów.",         time: "2 dni temu",  kind: "quiz" },
 	],
-	stats: {
-		materials: 128,
-		notes: 42,
-		summaries: 18,
-		quizzes: 11,
-		files: 128,
-	}
+	schedule: [
+		{ id: "s-1", subject: "Matematyka dyskretna",         room: "A204", time: "08:00–09:30", type: "lecture" },
+		{ id: "s-2", subject: "Sieci komputerowe",            room: "B112", time: "10:00–11:30", type: "lab" },
+		{ id: "s-3", subject: "Algorytmy i struktury danych", room: "C305", time: "13:15–14:45", type: "lecture" },
+		{ id: "s-4", subject: "Projekt zespołowy",            room: "D01",  time: "15:00–16:30", type: "seminar" },
+		{ id: "s-5", subject: "Bazy danych",                  room: "A101", time: "16:45–18:15", type: "lab" },
+	],
+	stats: { materials: 128, notes: 42, summaries: 18, quizzes: 11 },
 })
 
-const { data: dashboardData } = await useAsyncData("dashboard-home", dashboardHooks, {
+const { data } = await useAsyncData("dashboard-home", dashboardHooks, {
 	default: () => ({
-		groups: [] as DashboardGroup[],
-		events: [] as DashboardEvent[],
+		events:     [] as DashboardEvent[],
 		activities: [] as DashboardActivity[],
-		stats: {
-			materials: 0,
-			notes: 0,
-			summaries: 0,
-			quizzes: 0,
-			files: 0,
-		},
+		schedule:   [] as ScheduleItem[],
+		stats: { materials: 0, notes: 0, summaries: 0, quizzes: 0 },
 	}),
 })
 
-const mockGroups = computed(() => dashboardData.value?.groups ?? [])
-const mockEvents = computed(() => dashboardData.value?.events ?? [])
-const mockActivities = computed(() => dashboardData.value?.activities ?? [])
+const metrics = computed<DashboardMetric[]>(() => [
+	{ label: "Materiały",    value: String(data.value?.stats.materials ?? 0), note: "Zasoby do przeglądu",  icon: "i-lucide-folder-open",  tone: "tone-course" },
+	{ label: "Notatki",      value: String(data.value?.stats.notes     ?? 0), note: "Opracowania z zajęć",  icon: "i-lucide-notebook-pen", tone: "tone-uni" },
+	{ label: "Streszczenia", value: String(data.value?.stats.summaries ?? 0), note: "Gotowe skróty treści", icon: "i-lucide-file-text",    tone: "tone-fac" },
+	{ label: "Quizy",        value: String(data.value?.stats.quizzes   ?? 0), note: "Szybkie powtórki",     icon: "i-lucide-award",        tone: "tone-course" },
+])
 
-const metrics = computed<DashboardMetric[]>(() => {
-	const stats = dashboardData.value?.stats
-
-	return [
-		{ label: "Materiały", value: String(stats?.materials ?? 0), note: "Zasoby do przeglądu", icon: "i-lucide-folder-open", tone: "tone-course" },
-		{ label: "Notatki", value: String(stats?.notes ?? 0), note: "Opracowania z zajęć", icon: "i-lucide-notebook-pen", tone: "tone-uni" },
-		{ label: "Streszczenia", value: String(stats?.summaries ?? 0), note: "Gotowe skróty treści", icon: "i-lucide-file-text", tone: "tone-fac" },
-		{ label: "Quizy", value: String(stats?.quizzes ?? 0), note: "Szybkie powtórki", icon: "i-lucide-award", tone: "tone-course" },
-	]
-})
+const mockEvents     = computed(() => data.value?.events     ?? [])
+const mockActivities = computed(() => data.value?.activities ?? [])
+const todaySchedule  = computed(() => data.value?.schedule   ?? [])
 
 const formatDate = (d: string) =>
-	new Date(d).toLocaleString("pl-PL", {
-		dateStyle: "medium",
-		timeStyle: "short",
-	})
+	new Date(d).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" })
 
 const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
-	weekday: "long",
-	day: "numeric",
-	month: "long",
-	hour: "2-digit",
-	minute: "2-digit",
+	weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
 }).format(new Date())
-
 </script>
 
 <template>
-	<div class="page-shell">
+	<div style="display: contents">
 		<UDashboardPanel>
 			<template #header>
 				<UDashboardNavbar title="Dashboard">
@@ -148,400 +133,287 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 				</UDashboardNavbar>
 			</template>
 
-			<div class="dashboard-root">
-				<section class="hero-card">
-					<div class="hero-copy">
-						<p class="hero-meta">{{ heroDateTime }}</p>
-						<h1 class="hero-title">Witaj, {{ displayName }}</h1>
-						<p class="hero-text">Szybki przegląd materiałów, aktywności i grup. Wszystko w jednym miejscu, bez szumu.</p>
-					</div>
+			<div class="dash">
+
+				<!-- ── Hero ── -->
+				<section class="hero">
+					<p class="kicker">{{ heroDateTime }}</p>
+					<h1 class="hero-title">Witaj, {{ displayName }}</h1>
+					<p class="hero-desc">Szybki przegląd materiałów, aktywności i grup.</p>
 				</section>
 
-				<section class="metric-grid" aria-label="Najważniejsze statystyki">
-					<UCard v-for="metric in metrics" :key="metric.label" class="metric-card">
-						<div class="metric-inner">
-							<div :class="['metric-icon', metric.tone]">
-								<UIcon :name="metric.icon" class="h-5 w-5" />
+				<!-- ── Metrics ── -->
+				<section class="metrics-grid" aria-label="Statystyki">
+					<UCard v-for="m in metrics" :key="m.label">
+						<div class="metric-row">
+							<div class="icon-box" :class="m.tone">
+								<UIcon :name="m.icon" class="h-5 w-5" />
 							</div>
-							<div class="metric-copy">
-								<p class="metric-label">{{ metric.label }}</p>
-								<p class="metric-value">{{ metric.value }}</p>
-								<p class="metric-note">{{ metric.note }}</p>
+							<div>
+								<p class="kicker">{{ m.label }}</p>
+								<p class="metric-val">{{ m.value }}</p>
+								<p class="sub">{{ m.note }}</p>
 							</div>
 						</div>
 					</UCard>
 				</section>
 
-				<section class="content-grid">
-					<div class="stack">
-						<UCard id="focus" class="panel-card">
-							<template #header>
-								<div class="panel-head">
-									<div>
-										<p class="panel-kicker">Do zrobienia</p>
-										<h2 class="panel-title">Nadchodzące terminy</h2>
-									</div>
-									<UBadge color="neutral" variant="soft">{{ mockEvents.length }}</UBadge>
-								</div>
-							</template>
+				<!-- ── 3 columns ── -->
+				<div class="cols">
 
-							<div class="section-list">
-								<article v-for="event in mockEvents" :key="event.id" class="row">
-									<div class="row-main">
-										<div class="row-title">{{ event.title }}</div>
-										<div class="row-meta">{{ formatDate(event.date) }} · {{ event.group }}</div>
-									</div>
-									<UBadge :class="groupMeta[event.type].chip" variant="soft">{{ groupMeta[event.type].label }}</UBadge>
-								</article>
+					<!-- Nadchodzące terminy -->
+					<div class="panel">
+						<div class="panel-hd">
+							<div>
+								<p class="kicker">Do zrobienia</p>
+								<h2 class="panel-title">Nadchodzące terminy</h2>
 							</div>
-						</UCard>
-
-						<UCard id="activity" class="panel-card">
-							<template #header>
-								<div class="panel-head">
-									<div>
-										<p class="panel-kicker">Ostatnio</p>
-										<h2 class="panel-title">Aktywność</h2>
-									</div>
-									<UBadge color="primary" variant="soft">4</UBadge>
+							<UBadge color="neutral" variant="soft">{{ mockEvents.length }}</UBadge>
+						</div>
+						<ul class="panel-bd">
+							<li v-for="ev in mockEvents" :key="ev.id" class="row">
+								<div class="row-body">
+									<p class="row-title">{{ ev.title }}</p>
+									<p class="sub">{{ formatDate(ev.date) }} · {{ ev.group }}</p>
 								</div>
-							</template>
-
-							<div class="section-list">
-								<article v-for="activity in mockActivities" :key="activity.id" class="row activity-row">
-									<div class="activity-dot" :class="`dot-${activity.kind}`" />
-									<div class="row-main">
-										<div class="row-title">{{ activity.title }}</div>
-										<div class="row-meta">{{ activity.detail }}</div>
-									</div>
-									<span class="row-time">{{ activity.time }}</span>
-								</article>
-							</div>
-						</UCard>
+								<UBadge :class="groupMeta[ev.type].chip" variant="soft" size="sm">
+									{{ groupMeta[ev.type].label }}
+								</UBadge>
+							</li>
+						</ul>
 					</div>
 
-					<div class="stack">
-						<UCard id="groups" class="panel-card">
-							<template #header>
-								<div class="panel-head">
-									<div>
-										<p class="panel-kicker">Współpraca</p>
-										<h2 class="panel-title">Twoje grupy</h2>
-									</div>
-									<UBadge color="neutral" variant="soft">{{ mockGroups.length }}</UBadge>
-								</div>
-							</template>
-
-							<div class="section-list">
-								<article v-for="group in mockGroups" :key="group.id" class="group-card">
-									<div class="group-top">
-										<div class="group-avatar" :class="`tone-${group.type}`">{{ group.name.slice(0, 2).toUpperCase() }}</div>
-										<div class="row-main">
-											<div class="row-title">{{ group.name }}</div>
-											<div class="row-meta">{{ groupMeta[group.type].label }} · {{ group.members }} osób · {{ group.role }}</div>
-										</div>
-									</div>
-
-									<div class="progress-line" aria-hidden="true">
-										<span :style="{ width: `${group.progress}%` }" :class="`progress-${group.type}`" />
-									</div>
-								</article>
+					<!-- Plan zajęć -->
+					<div class="panel">
+						<div class="panel-hd">
+							<div>
+								<p class="kicker">Dzisiaj</p>
+								<h2 class="panel-title">Plan zajęć</h2>
 							</div>
-						</UCard>
+							<UBadge color="neutral" variant="soft">{{ todaySchedule.length }}</UBadge>
+						</div>
+						<ul class="panel-bd">
+							<li v-for="s in todaySchedule" :key="s.id" class="row">
+								<span class="sched-time">{{ s.time }}</span>
+								<div class="row-body">
+									<p class="row-title">{{ s.subject }}</p>
+									<p class="sub">{{ s.room }} · {{ scheduleTypeLabel[s.type] }}</p>
+								</div>
+							</li>
+						</ul>
 					</div>
-				</section>
+
+					<!-- Aktywność -->
+					<div class="panel">
+						<div class="panel-hd">
+							<div>
+								<p class="kicker">Ostatnio</p>
+								<h2 class="panel-title">Aktywność</h2>
+							</div>
+							<UBadge color="primary" variant="soft">{{ mockActivities.length }}</UBadge>
+						</div>
+						<ul class="panel-bd">
+							<li v-for="act in mockActivities" :key="act.id" class="row row--activity">
+								<span class="dot" :class="`dot-${act.kind}`" aria-hidden="true" />
+								<div class="row-body">
+									<p class="row-title">{{ act.title }}</p>
+									<p class="sub">{{ act.detail }}</p>
+								</div>
+								<span class="sub">{{ act.time }}</span>
+							</li>
+						</ul>
+					</div>
+
+				</div>
 			</div>
 		</UDashboardPanel>
 	</div>
 </template>
 
 <style scoped>
-.page-shell {
-	min-height: 100vh;
-	width: 100%;
-}
-
-.dashboard-root {
-	min-height: calc(100vh - 4rem);
-	padding: 1rem;
-	display: grid;
-	gap: 1rem;
-	align-content: start;
-	overflow-y: auto;
-}
-
-.hero-card {
-	position: relative;
+/* ── Outer shell ── */
+.dash {
+	height: 100%;
 	overflow: hidden;
+	padding: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+/* ── Hero ── */
+.hero {
+	flex-shrink: 0;
+	padding: 1.15rem 1.25rem;
 	border: 1px solid var(--ui-border);
 	border-radius: var(--ui-radius-lg);
-	background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(59, 130, 246, 0.08));
-	padding: 1.15rem 1.25rem;
-	display: flex;
-	justify-content: space-between;
-	gap: 1rem;
-	align-items: flex-start;
-}
-
-.hero-card::after {
-	content: "";
-	position: absolute;
-	inset: auto -2rem -2rem auto;
-	width: 10rem;
-	height: 10rem;
-	border-radius: 999px;
-	background: radial-gradient(circle, rgba(59, 130, 246, 0.22), transparent 70%);
-	pointer-events: none;
-}
-
-.hero-copy,
-.hero-actions,
-.row-main {
-	min-width: 0;
-}
-
-.hero-copy {
-	max-width: 42rem;
-}
-
-.hero-meta,
-.panel-kicker,
-.metric-label,
-.row-meta,
-.row-time {
-	font-size: 0.75rem;
-	color: var(--ui-text-muted);
-}
-
-.hero-meta,
-.panel-kicker {
-	font-weight: 700;
-}
-
-.hero-meta {
-	text-transform: capitalize;
+	background: linear-gradient(135deg, rgba(16, 185, 129, 0.07), rgba(59, 130, 246, 0.07));
 }
 
 .hero-title {
-	margin: 0.35rem 0 0;
-	font-size: clamp(1.7rem, 3vw, 2.8rem);
+	font-size: clamp(1.4rem, 2.5vw, 2.2rem);
 	font-weight: 800;
-	line-height: 1.05;
 	color: var(--ui-text);
+	margin: 0.2rem 0 0.3rem;
+	line-height: 1.1;
 }
 
-.hero-text {
-	margin-top: 0.75rem;
-	max-width: 44rem;
+.hero-desc {
+	font-size: 0.875rem;
 	color: var(--ui-text-muted);
-	line-height: 1.55;
-	font-size: 0.95rem;
 }
 
-.hero-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-}
-
-.metric-grid {
+/* ── Metrics ── */
+.metrics-grid {
+	flex-shrink: 0;
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 	gap: 0.75rem;
 }
 
-.metric-card,
-.panel-card {
-	height: 100%;
-}
-
-.metric-inner {
+.metric-row {
 	display: flex;
 	gap: 0.75rem;
 	align-items: flex-start;
 }
 
-.metric-copy {
-	min-width: 0;
+.metric-val {
+	font-size: 1.6rem;
+	font-weight: 800;
+	line-height: 1;
+	color: var(--ui-text);
+	margin: 0.15rem 0 0.1rem;
 }
 
-.metric-icon,
-.group-avatar,
-.activity-dot {
+.icon-box {
 	flex-shrink: 0;
-}
-
-.metric-icon {
-	width: 2.75rem;
-	height: 2.75rem;
-	border-radius: 0.9rem;
+	width: 2.4rem;
+	height: 2.4rem;
+	border-radius: 0.7rem;
 	display: grid;
 	place-items: center;
 	color: #fff;
 }
 
-.metric-value {
-	font-size: 1.65rem;
-	font-weight: 800;
-	line-height: 1;
-	margin: 0.15rem 0 0.15rem;
-	color: var(--ui-text);
-}
-
-.metric-note,
-.panel-title,
-.row-title {
-	color: var(--ui-text);
-}
-
-.metric-note {
-	font-size: 0.78rem;
-	color: var(--ui-text-muted);
-}
-
-.content-grid {
+/* ── 3 columns ── */
+.cols {
+	flex: 1;
+	min-height: 0;
 	display: grid;
-	grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 0.75rem;
 }
 
-.stack {
-	display: grid;
-	gap: 0.75rem;
-}
-
-.panel-head,
-.row,
-.group-card,
-.group-top,
-.group-bottom {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-}
-
-.panel-title {
-	font-size: 1rem;
-	font-weight: 700;
-	line-height: 1.2;
-}
-
-.section-list {
+/* ── Panel (custom card that stretches) ── */
+.panel {
 	display: flex;
 	flex-direction: column;
-	gap: 0;
-}
-
-.row,
-.group-card {
-	padding: 0.75rem 0;
-	border-bottom: 1px solid var(--ui-border);
-}
-
-.row .u-badge {
-	min-width: 6.75rem;
-	justify-content: center;
-	text-align: center;
-}
-
-.row:last-child,
-.group-card:last-child {
-	border-bottom: 0;
-	padding-bottom: 0;
-}
-
-.row:first-child,
-.group-card:first-child {
-	padding-top: 0;
-}
-
-.activity-row {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: start;
-}
-
-.activity-dot {
-	width: 0.7rem;
-	height: 0.7rem;
-	margin-top: 0.3rem;
-	border-radius: 999px;
-}
-
-.dot-note { background: #185FA5; }
-.dot-quiz { background: #BA7517; }
-.dot-file { background: #0F6E56; }
-.dot-summary { background: #6B7280; }
-
-.group-top {
-	align-items: flex-start;
-}
-
-.group-avatar {
-	width: 2.5rem;
-	height: 2.5rem;
-	border-radius: 0.9rem;
-	display: grid;
-	place-items: center;
-	font-size: 0.78rem;
-	font-weight: 800;
-}
-
-.row-title {
-	font-weight: 700;
-	line-height: 1.2;
-	font-size: 0.95rem;
-}
-
-.progress-line {
-	margin: 0.65rem 0 0.35rem;
-	height: 0.55rem;
-	border-radius: 999px;
-	background: var(--ui-bg-muted);
+	min-height: 0;
+	background: var(--ui-bg);
+	border: 1px solid var(--ui-border);
+	border-radius: var(--ui-radius-lg);
 	overflow: hidden;
 }
 
-.progress-line > span {
-	display: block;
-	height: 100%;
-	border-radius: inherit;
+.panel-hd {
+	flex-shrink: 0;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.875rem 1rem;
+	border-bottom: 1px solid var(--ui-border);
 }
 
-.progress-university { background: linear-gradient(90deg, #0F6E56, #34D399); }
-.progress-faculty { background: linear-gradient(90deg, #185FA5, #60A5FA); }
-.progress-course { background: linear-gradient(90deg, #BA7517, #FBBF24); }
+.panel-title {
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--ui-text);
+	line-height: 1.2;
+}
 
-.chip-uni { background: #E1F5EE; color: #0F6E56; }
-.chip-fac { background: #E6F1FB; color: #185FA5; }
+.panel-bd {
+	flex: 1;
+	overflow-y: auto;
+	padding: 0 1rem;
+	list-style: none;
+	margin: 0;
+}
+
+/* ── Rows ── */
+.row {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0;
+	border-bottom: 1px solid var(--ui-border);
+}
+
+.row:last-child { border-bottom: none; }
+
+.row--activity { align-items: flex-start; }
+
+.row-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.row-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--ui-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── Activity dot ── */
+.dot {
+	flex-shrink: 0;
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 999px;
+	margin-top: 0.35rem;
+}
+
+.dot-note    { background: #185FA5; }
+.dot-quiz    { background: #BA7517; }
+.dot-file    { background: #0F6E56; }
+.dot-summary { background: #6B7280; }
+
+/* ── Schedule time ── */
+.sched-time {
+	flex-shrink: 0;
+	width: 5.5rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: var(--ui-text-muted);
+}
+
+/* ── Shared ── */
+.kicker {
+	font-size: 0.68rem;
+	font-weight: 700;
+	color: var(--ui-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.sub { font-size: 0.78rem; color: var(--ui-text-muted); }
+
+/* ── Colors ── */
+.tone-uni    { background: #0F6E56; }
+.tone-fac    { background: #185FA5; }
+.tone-course { background: #BA7517; }
+
+.chip-uni    { background: #E1F5EE; color: #0F6E56; }
+.chip-fac    { background: #E6F1FB; color: #185FA5; }
 .chip-course { background: #FAEEDA; color: #BA7517; }
 
-.tone-uni { background: #0F6E56; }
-.tone-fac { background: #185FA5; }
-.tone-course { background: #BA7517; }
-.tone-neutral { background: #6B7280; }
-
-@media (max-width: 1100px) {
-	.metric-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.content-grid {
-		grid-template-columns: 1fr;
-	}
-}
-
-@media (max-width: 720px) {
-	.dashboard-root {
-		padding: 0.75rem;
-	}
-
-	.hero-card {
-		flex-direction: column;
-	}
-
-	.metric-grid {
-		grid-template-columns: 1fr;
-	}
+/* ── Responsive ── */
+@media (max-width: 768px) {
+	.dash { padding: 0.75rem; overflow-y: auto; }
+	.cols { grid-template-columns: 1fr; flex: none; }
+	.panel { min-height: 300px; }
 }
 </style>
