@@ -36,6 +36,11 @@ type ScheduleItem = {
 	group: string
 	time: string
 	type: GroupType
+	startsAt?: string
+	endsAt?: string
+	sessionKind?: ParsedDescription['sessionKind']
+	location?: string
+	isPersonal?: boolean
 }
 
 type DashboardStats = {
@@ -255,6 +260,14 @@ const resolveGroup = (group: RelatedGroup, fallbackId: string) => ({
 	type: group?.type ?? "personal",
 })
 
+const sessionKindLabel: Record<ParsedDescription['sessionKind'], string> = {
+	'': '',
+	lecture: 'Wykład',
+	lab: 'Laboratorium',
+	exercise: 'Ćwiczenia',
+	project: 'Projekt',
+}
+
 const loadDashboard = async (): Promise<DashboardData> => {
 	const userId = currentUserId.value
 	if (!userId) return emptyDashboard()
@@ -399,6 +412,9 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			allDay,
 			moment: new Date(startsAt).getTime(),
 			seriesId: parsedDescription.seriesId,
+			sessionKind: parsedDescription.sessionKind,
+			location: parsedDescription.location,
+			isPersonal: resolvedGroup.type === 'personal',
 		}
 	})
 
@@ -412,6 +428,9 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			date: event.startsAt,
 			group: event.group,
 			type: event.type,
+			sessionKind: event.sessionKind,
+			location: event.location,
+			isPersonal: event.isPersonal,
 		}))
 
 	const todaySchedule = decoratedEvents
@@ -419,13 +438,24 @@ const loadDashboard = async (): Promise<DashboardData> => {
 		.filter((event) => !event.allDay)
 		.filter((event) => event.moment >= todayStart.getTime() && event.moment < tomorrowStart.getTime())
 		.slice(0, 5)
-		.map((event) => ({
-			id: event.id,
-			subject: event.title,
-			group: event.group,
-			time: new Date(event.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }),
-			type: event.type,
-		}))
+		.map((event) => {
+			const startTime = new Date(event.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })
+			const endTime = event.endsAt ? new Date(event.endsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) : ''
+			const time = endTime && endTime !== startTime ? `${startTime} – ${endTime}` : startTime
+
+			return {
+				id: event.id,
+				subject: event.title,
+				group: event.group,
+				time,
+				type: event.type,
+				startsAt: event.startsAt,
+				endsAt: event.endsAt,
+				sessionKind: event.sessionKind,
+				location: event.location,
+				isPersonal: event.isPersonal,
+			}
+		})
 
 	const activityRows = [
 		...recentFiles.map((file) => {
@@ -444,16 +474,19 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 			.slice(0, 3)
 			.map((event) => {
-			const group = resolveGroup(event.group, event.group_id)
-			return {
-				id: `event-${event.id}`,
-				title: event.title,
-				detail: `${groupMeta[group.type].label} · ${group.name}`,
-				time: formatRelativeTime(event.created_at),
-				kind: "event" as const,
-				moment: new Date(event.created_at).getTime(),
-			}
-		}),
+				const group = resolveGroup(event.group, event.group_id)
+				const parsed = parseStoredDescription(event.description)
+				const sessionLabel = parsed.sessionKind ? sessionKindLabel[parsed.sessionKind] : groupMeta[group.type].label
+				const location = parsed.location ? ` · ${parsed.location}` : ''
+				return {
+					id: `event-${event.id}`,
+					title: event.title,
+					detail: `${sessionLabel} · ${group.name}${location}`,
+					time: formatRelativeTime(event.created_at),
+					kind: "event" as const,
+					moment: new Date(event.created_at).getTime(),
+				}
+			}),
 	]
 
 	const activities = activityRows
@@ -535,7 +568,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<p class="kicker">Do zrobienia</p>
 								<h2 class="panel-title">Nadchodzące terminy</h2>
 							</div>
 							<UBadge color="neutral" variant="soft">{{ upcomingEvents.length }}</UBadge>
@@ -559,7 +591,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<p class="kicker">Zajęcia</p>
 								<h2 class="panel-title">Plan zajęć</h2>
 							</div>
 							<UBadge color="neutral" variant="soft">{{ todaySchedule.length }}</UBadge>
@@ -581,7 +612,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<p class="kicker">Ostatnio</p>
 								<h2 class="panel-title">Aktywność</h2>
 							</div>
 							<UBadge color="primary" variant="soft">{{ recentActivities.length }}</UBadge>
