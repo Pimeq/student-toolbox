@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import type { Database } from '~/types/database.types'
+
 definePageMeta({ layout: "dashboard" })
 
-type GroupType = "university" | "faculty" | "course"
+type GroupType = Database["public"]["Enums"]["group_type"]
+type ActivityKind = Database["public"]["Enums"]["file_type"] | "event"
 
 type DashboardMetric = {
 	label: string
@@ -24,15 +27,15 @@ type DashboardActivity = {
 	title: string
 	detail: string
 	time: string
-	kind: string
+	kind: ActivityKind
 }
 
 type ScheduleItem = {
 	id: string
 	subject: string
-	room: string
+	group: string
 	time: string
-	type: "lecture" | "lab" | "seminar"
+	type: GroupType
 }
 
 type DashboardStats = {
@@ -42,7 +45,90 @@ type DashboardStats = {
 	quizzes: number
 }
 
+type RelatedGroup = {
+	id: string
+	name: string
+	type: GroupType
+} | null
+
+type MembershipRow = {
+	group_id: string
+	group: RelatedGroup
+}
+
+type GroupRow = {
+	id: string
+	name: string
+	type: GroupType
+}
+
+type FacultyLink = {
+	id: string
+	university_id: string
+}
+
+type CourseLink = {
+	id: string
+	faculty_id: string
+}
+
+type ClassLink = {
+	id: string
+	course_id: string
+}
+
+type EventRow = {
+	id: number
+	title: string
+	description: string | null
+	starts_at: string | null
+	ends_at: string | null
+	created_at: string
+	group_id: string
+	group: RelatedGroup
+}
+
+type FileRow = {
+	id: string
+	name: string
+	file_type: Database["public"]["Enums"]["file_type"]
+	created_at: string
+	group_id: string
+	group: RelatedGroup
+}
+
+type DashboardData = {
+	events: DashboardEvent[]
+	activities: DashboardActivity[]
+	schedule: ScheduleItem[]
+	stats: DashboardStats
+}
+
+type ParsedDescription = {
+	note: string
+	location: string
+	seriesId: string
+	sessionKind: '' | 'lecture' | 'lab' | 'exercise' | 'project'
+	scopeGroupId: string
+}
+
+const emptyDashboard = (): DashboardData => ({
+	events: [],
+	activities: [],
+	schedule: [],
+	stats: { materials: 0, notes: 0, summaries: 0, quizzes: 0 },
+})
+
+const supabase = useSupabaseClient<Database>()
 const user = useSupabaseUser()
+
+type UserLike = { id?: string; sub?: string } | null | undefined
+
+function resolveCurrentUserId(currentUser: UserLike) {
+	return currentUser?.id ?? currentUser?.sub ?? ''
+}
+
+const currentUserId = computed(() => resolveCurrentUserId(user.value as UserLike))
 
 const displayName = computed(() => {
 	const fullName = user.value?.user_metadata?.full_name as string | undefined
@@ -53,69 +139,357 @@ const displayName = computed(() => {
 
 const groupMeta: Record<GroupType, { label: string; chip: string }> = {
 	university: { label: "Uniwersytet", chip: "chip-uni" },
-	faculty:    { label: "Wydział",     chip: "chip-fac" },
-	course:     { label: "Kierunek",    chip: "chip-course" },
+	faculty: { label: "Wydział", chip: "chip-fac" },
+	course: { label: "Kierunek", chip: "chip-course" },
+	class: { label: "Zajęcia", chip: "chip-class" },
+	personal: { label: "Prywatne", chip: "chip-personal" },
 }
 
-const scheduleTypeLabel: Record<ScheduleItem["type"], string> = {
-	lecture: "Wykład",
-	lab:     "Laboratorium",
-	seminar: "Seminarium",
+const activityKindLabel: Record<ActivityKind, string> = {
+	note: "Notatka",
+	summary: "Streszczenie",
+	quiz: "Quiz",
+	generic: "Plik",
+	event: "Wydarzenie",
 }
 
-const dashboardHooks = async (): Promise<{
-	events:     DashboardEvent[]
-	activities: DashboardActivity[]
-	schedule:   ScheduleItem[]
-	stats:      DashboardStats
-}> => ({
-	events: [
-		{ id: "e-1", title: "Wykład z architektury systemów", date: "2026-05-02T10:15:00.000Z", group: "Informatyka",                    type: "course" },
-		{ id: "e-2", title: "Konsultacje do projektu",        date: "2026-05-03T14:00:00.000Z", group: "Wydział Elektroniki",             type: "faculty" },
-		{ id: "e-3", title: "Spotkanie organizacyjne roku",   date: "2026-05-04T09:30:00.000Z", group: "Warsaw University of Technology", type: "university" },
-		{ id: "e-4", title: "Oddanie projektu zaliczeniowego", date: "2026-05-09T23:59:00.000Z", group: "Informatyka",                   type: "course" },
-		{ id: "e-5", title: "Egzamin z sieci komputerowych",  date: "2026-05-14T09:00:00.000Z", group: "Informatyka",                    type: "course" },
-	],
-	activities: [
-		{ id: "a-1", title: "Notatka",      detail: "Dodano skrót z wykładu.",          time: "2 min temu",  kind: "note" },
-		{ id: "a-2", title: "Quiz",         detail: "Test powtórkowy zaliczony.",        time: "18 min temu", kind: "quiz" },
-		{ id: "a-3", title: "Plik",         detail: "Wgrano PDF z materiałami.",         time: "1 h temu",    kind: "file" },
-		{ id: "a-4", title: "Streszczenie", detail: "Podsumowanie seminarium gotowe.",   time: "wczoraj",     kind: "summary" },
-		{ id: "a-5", title: "Notatka",      detail: "Opracowanie z ćwiczeń.",            time: "wczoraj",     kind: "note" },
-		{ id: "a-6", title: "Quiz",         detail: "Próbny test z algorytmów.",         time: "2 dni temu",  kind: "quiz" },
-	],
-	schedule: [
-		{ id: "s-1", subject: "Matematyka dyskretna",         room: "A204", time: "08:00–09:30", type: "lecture" },
-		{ id: "s-2", subject: "Sieci komputerowe",            room: "B112", time: "10:00–11:30", type: "lab" },
-		{ id: "s-3", subject: "Algorytmy i struktury danych", room: "C305", time: "13:15–14:45", type: "lecture" },
-		{ id: "s-4", subject: "Projekt zespołowy",            room: "D01",  time: "15:00–16:30", type: "seminar" },
-		{ id: "s-5", subject: "Bazy danych",                  room: "A101", time: "16:45–18:15", type: "lab" },
-	],
-	stats: { materials: 128, notes: 42, summaries: 18, quizzes: 11 },
+const formatRelativeTime = (value: string) => {
+	const diffMinutes = Math.round((Date.now() - new Date(value).getTime()) / 60000)
+	if (Number.isNaN(diffMinutes)) return "ostatnio"
+	if (Math.abs(diffMinutes) < 1) return "teraz"
+
+	const formatter = new Intl.RelativeTimeFormat("pl-PL", { numeric: "auto" })
+	if (Math.abs(diffMinutes) < 60) return formatter.format(-diffMinutes, "minute")
+
+	const diffHours = Math.round(diffMinutes / 60)
+	if (Math.abs(diffHours) < 24) return formatter.format(-diffHours, "hour")
+
+	const diffDays = Math.round(diffHours / 24)
+	return formatter.format(-diffDays, "day")
+}
+
+const normalizeDbDateTime = (value: string) => {
+	if (!value) return value
+	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`
+	return value
+}
+
+const extractTime = (value: string) => {
+	if (!value) return ''
+	if (value.includes('T')) return value.split('T')[1]?.slice(0, 8) ?? ''
+	if (value.includes(' ')) return value.split(' ')[1]?.slice(0, 8) ?? ''
+	return ''
+}
+
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+
+function parseStoredDescription(raw?: string | null): ParsedDescription {
+	const text = (raw ?? '').trim()
+	if (!text) return { note: '', location: '', seriesId: '', sessionKind: '', scopeGroupId: '' }
+
+	const lines = text.split(/\r?\n/)
+	let cursor = 0
+	let location = ''
+	let seriesId = ''
+	let sessionKind: ParsedDescription['sessionKind'] = ''
+	let scopeGroupId = ''
+
+	while (cursor < lines.length) {
+		const line = lines[cursor]?.trim() ?? ''
+		if (!line) {
+			cursor += 1
+			break
+		}
+
+		if (line.startsWith('@loc:')) {
+			location = line.slice(5).trim()
+			cursor += 1
+			continue
+		}
+
+		if (line.startsWith('@series:')) {
+			seriesId = line.slice(8).trim()
+			cursor += 1
+			continue
+		}
+
+		if (line.startsWith('@kind:')) {
+			const rawKind = line.slice(6).trim()
+			if (rawKind === 'lecture' || rawKind === 'lab' || rawKind === 'exercise' || rawKind === 'project') {
+				sessionKind = rawKind
+			}
+			cursor += 1
+			continue
+		}
+
+		if (line.startsWith('@scope:')) {
+			scopeGroupId = line.slice(7).trim()
+			cursor += 1
+			continue
+		}
+
+		break
+	}
+
+	const note = lines.slice(cursor).join('\n').trim()
+	if (!location && !seriesId && !sessionKind && !scopeGroupId) {
+		return { note: text, location: '', seriesId: '', sessionKind: '', scopeGroupId: '' }
+	}
+
+	return { note, location, seriesId, sessionKind, scopeGroupId }
+}
+
+const formatAllDayDate = (value: string) =>
+	new Date(normalizeDbDateTime(value)).toLocaleDateString('pl-PL', { dateStyle: 'medium' })
+
+const isAllDayEvent = (startsAt: string | null, endsAt: string | null) => {
+	if (!startsAt || !endsAt) return false
+	return (
+		(isDateOnly(startsAt) && isDateOnly(endsAt))
+		|| (extractTime(startsAt) === '00:00:00' && extractTime(endsAt) === '00:00:00')
+	)
+}
+
+const resolveGroup = (group: RelatedGroup, fallbackId: string) => ({
+	name: group?.name ?? fallbackId,
+	type: group?.type ?? "personal",
 })
 
-const { data } = await useAsyncData("dashboard-home", dashboardHooks, {
-	default: () => ({
-		events:     [] as DashboardEvent[],
-		activities: [] as DashboardActivity[],
-		schedule:   [] as ScheduleItem[],
-		stats: { materials: 0, notes: 0, summaries: 0, quizzes: 0 },
-	}),
+const loadDashboard = async (): Promise<DashboardData> => {
+	const userId = currentUserId.value
+	if (!userId) return emptyDashboard()
+
+	const { data: membershipsData, error: membershipsError } = await supabase
+		.from("user_memberships")
+		.select("group_id, group:groups(id, name, type)")
+		.eq("user_id", userId)
+
+	if (membershipsError) throw membershipsError
+
+	const memberships = (membershipsData ?? []) as MembershipRow[]
+	const directGroupIds = Array.from(new Set(memberships.map((membership) => membership.group_id)))
+	if (!directGroupIds.length) return emptyDashboard()
+
+	const [facultiesResult, coursesResult, classesResult] = await Promise.all([
+		supabase.from("faculties").select("id, university_id"),
+		supabase.from("courses").select("id, faculty_id"),
+		supabase.from("classes").select("id, course_id"),
+	])
+
+	if (facultiesResult.error) throw facultiesResult.error
+	if (coursesResult.error) throw coursesResult.error
+	if (classesResult.error) throw classesResult.error
+
+	const faculties = (facultiesResult.data ?? []) as FacultyLink[]
+	const courses = (coursesResult.data ?? []) as CourseLink[]
+	const classes = (classesResult.data ?? []) as ClassLink[]
+
+	const childGroupIdsByParent = new Map<string, string[]>()
+	const parentGroupIdByChild = new Map<string, string>()
+
+	for (const faculty of faculties) {
+		parentGroupIdByChild.set(faculty.id, faculty.university_id)
+		const currentChildren = childGroupIdsByParent.get(faculty.university_id) ?? []
+		currentChildren.push(faculty.id)
+		childGroupIdsByParent.set(faculty.university_id, currentChildren)
+	}
+
+	for (const course of courses) {
+		parentGroupIdByChild.set(course.id, course.faculty_id)
+		const currentChildren = childGroupIdsByParent.get(course.faculty_id) ?? []
+		currentChildren.push(course.id)
+		childGroupIdsByParent.set(course.faculty_id, currentChildren)
+	}
+
+	for (const cls of classes) {
+		parentGroupIdByChild.set(cls.id, cls.course_id)
+		const currentChildren = childGroupIdsByParent.get(cls.course_id) ?? []
+		currentChildren.push(cls.id)
+		childGroupIdsByParent.set(cls.course_id, currentChildren)
+	}
+
+	const relatedGroupIds = new Set<string>(directGroupIds)
+	const queue = [...directGroupIds]
+
+	while (queue.length > 0) {
+		const groupId = queue.shift() as string
+		const parentId = parentGroupIdByChild.get(groupId)
+		if (parentId && !relatedGroupIds.has(parentId)) {
+			relatedGroupIds.add(parentId)
+			queue.push(parentId)
+		}
+
+		for (const childId of childGroupIdsByParent.get(groupId) ?? []) {
+			if (relatedGroupIds.has(childId)) continue
+			relatedGroupIds.add(childId)
+			queue.push(childId)
+		}
+	}
+
+	const accessibleGroupIds = Array.from(relatedGroupIds)
+
+	if (!accessibleGroupIds.length) return emptyDashboard()
+
+	const { data: groupRowsData, error: groupRowsError } = await supabase
+		.from("groups")
+		.select("id, name, type")
+		.in("id", accessibleGroupIds)
+
+	if (groupRowsError) throw groupRowsError
+
+	const groupRows = (groupRowsData ?? []) as GroupRow[]
+	const accessibleGroupMap = new Map<string, GroupRow>(groupRows.map((group) => [group.id, group]))
+
+	const [statsResult, recentFilesResult, eventsResult] = await Promise.all([
+		supabase
+			.from("files")
+			.select("id, file_type")
+			.in("group_id", accessibleGroupIds),
+		supabase
+			.from("files")
+			.select("id, name, file_type, created_at, group_id, group:groups(id, name, type)")
+			.in("group_id", accessibleGroupIds)
+			.order("created_at", { ascending: false })
+			.limit(6),
+		supabase
+			.from("events")
+			.select("id, title, description, starts_at, ends_at, created_at, group_id, group:groups(id, name, type)")
+				.in("group_id", accessibleGroupIds)
+				.gte("starts_at", new Date().toISOString())
+			.order("starts_at", { ascending: true })
+			.limit(12),
+	])
+
+	if (statsResult.error) throw statsResult.error
+	if (recentFilesResult.error) throw recentFilesResult.error
+	if (eventsResult.error) throw eventsResult.error
+
+	const fileStats = (statsResult.data ?? []) as Pick<FileRow, "file_type">[]
+	const recentFiles = (recentFilesResult.data ?? []) as FileRow[]
+	const eventRows = (eventsResult.data ?? []) as EventRow[]
+
+	const stats: DashboardStats = {
+		materials: fileStats.length,
+		notes: fileStats.filter((file) => file.file_type === "note").length,
+		summaries: fileStats.filter((file) => file.file_type === "summary").length,
+		quizzes: fileStats.filter((file) => file.file_type === "quiz").length,
+	}
+
+	const now = Date.now()
+	const todayStart = new Date()
+	todayStart.setHours(0, 0, 0, 0)
+	const tomorrowStart = new Date(todayStart)
+	tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+	const decoratedEvents = eventRows.map((event) => {
+		const parsedDescription = parseStoredDescription(event.description)
+		const scopeGroup = parsedDescription.scopeGroupId ? accessibleGroupMap.get(parsedDescription.scopeGroupId) ?? null : null
+		const eventGroup = accessibleGroupMap.get(event.group_id) ?? resolveGroup(event.group, event.group_id)
+		const resolvedGroup = scopeGroup ?? eventGroup
+		const startsAt = event.starts_at ?? event.created_at
+		const endsAt = event.ends_at ?? event.starts_at ?? event.created_at
+		const allDay = isAllDayEvent(startsAt, endsAt)
+
+		return {
+			id: String(event.id),
+			title: event.title,
+			group: resolvedGroup.name,
+			type: resolvedGroup.type,
+			startsAt,
+			endsAt,
+			allDay,
+			moment: new Date(startsAt).getTime(),
+			seriesId: parsedDescription.seriesId,
+		}
+	})
+
+	const upcomingEvents = decoratedEvents
+		.filter((event) => event.allDay)
+		.filter((event) => event.moment >= now)
+		.slice(0, 5)
+		.map((event) => ({
+			id: event.id,
+			title: event.title,
+			date: event.startsAt,
+			group: event.group,
+			type: event.type,
+		}))
+
+	const todaySchedule = decoratedEvents
+		.filter((event) => event.type !== "personal")
+		.filter((event) => !event.allDay)
+		.filter((event) => event.moment >= todayStart.getTime() && event.moment < tomorrowStart.getTime())
+		.slice(0, 5)
+		.map((event) => ({
+			id: event.id,
+			subject: event.title,
+			group: event.group,
+			time: new Date(event.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }),
+			type: event.type,
+		}))
+
+	const activityRows = [
+		...recentFiles.map((file) => {
+			const group = resolveGroup(file.group, file.group_id)
+			return {
+				id: `file-${file.id}`,
+				title: file.name,
+				detail: `${activityKindLabel[file.file_type]} · ${group.name}`,
+				time: formatRelativeTime(file.created_at),
+				kind: file.file_type,
+				moment: new Date(file.created_at).getTime(),
+			}
+		}),
+		...eventRows
+			.slice()
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+			.slice(0, 3)
+			.map((event) => {
+			const group = resolveGroup(event.group, event.group_id)
+			return {
+				id: `event-${event.id}`,
+				title: event.title,
+				detail: `${groupMeta[group.type].label} · ${group.name}`,
+				time: formatRelativeTime(event.created_at),
+				kind: "event" as const,
+				moment: new Date(event.created_at).getTime(),
+			}
+		}),
+	]
+
+	const activities = activityRows
+		.sort((left, right) => right.moment - left.moment)
+		.slice(0, 6)
+		.map(({ moment: _moment, ...activity }) => activity)
+
+	return {
+		events: upcomingEvents,
+		activities,
+		schedule: todaySchedule.length > 0 ? todaySchedule : upcomingEvents.map((event) => ({
+			id: event.id,
+			subject: event.title,
+			group: event.group,
+			time: new Date(event.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }),
+			type: event.type,
+		})),
+		stats,
+	}
+}
+
+const { data } = await useAsyncData("dashboard-home", loadDashboard, {
+	default: emptyDashboard,
+	watch: [currentUserId],
 })
 
 const metrics = computed<DashboardMetric[]>(() => [
-	{ label: "Materiały",    value: String(data.value?.stats.materials ?? 0), note: "Zasoby do przeglądu",  icon: "i-lucide-folder-open",  tone: "tone-course" },
-	{ label: "Notatki",      value: String(data.value?.stats.notes     ?? 0), note: "Opracowania z zajęć",  icon: "i-lucide-notebook-pen", tone: "tone-uni" },
-	{ label: "Streszczenia", value: String(data.value?.stats.summaries ?? 0), note: "Gotowe skróty treści", icon: "i-lucide-file-text",    tone: "tone-fac" },
-	{ label: "Quizy",        value: String(data.value?.stats.quizzes   ?? 0), note: "Szybkie powtórki",     icon: "i-lucide-award",        tone: "tone-course" },
+	{ label: "Materiały", value: String(data.value?.stats.materials ?? 0), note: "Zasoby do przeglądu", icon: "i-lucide-folder-open", tone: "tone-course" },
+	{ label: "Notatki", value: String(data.value?.stats.notes ?? 0), note: "Opracowania z zajęć", icon: "i-lucide-notebook-pen", tone: "tone-uni" },
+	{ label: "Streszczenia", value: String(data.value?.stats.summaries ?? 0), note: "Gotowe skróty treści", icon: "i-lucide-file-text", tone: "tone-fac" },
+	{ label: "Quizy", value: String(data.value?.stats.quizzes ?? 0), note: "Szybkie powtórki", icon: "i-lucide-award", tone: "tone-course" },
 ])
 
-const mockEvents     = computed(() => data.value?.events     ?? [])
-const mockActivities = computed(() => data.value?.activities ?? [])
-const todaySchedule  = computed(() => data.value?.schedule   ?? [])
-
-const formatDate = (d: string) =>
-	new Date(d).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" })
+const upcomingEvents = computed(() => data.value?.events ?? [])
+const recentActivities = computed(() => data.value?.activities ?? [])
+const todaySchedule = computed(() => data.value?.schedule ?? [])
 
 const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
@@ -135,14 +509,12 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 
 			<div class="dash">
 
-				<!-- ── Hero ── -->
 				<section class="hero">
 					<p class="kicker">{{ heroDateTime }}</p>
 					<h1 class="hero-title">Witaj, {{ displayName }}</h1>
 					<p class="hero-desc">Szybki przegląd materiałów, aktywności i grup.</p>
 				</section>
 
-				<!-- ── Metrics ── -->
 				<section class="metrics-grid" aria-label="Statystyki">
 					<UCard v-for="m in metrics" :key="m.label">
 						<div class="metric-row">
@@ -158,23 +530,24 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					</UCard>
 				</section>
 
-				<!-- ── 3 columns ── -->
 				<div class="cols">
 
-					<!-- Nadchodzące terminy -->
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
 								<p class="kicker">Do zrobienia</p>
 								<h2 class="panel-title">Nadchodzące terminy</h2>
 							</div>
-							<UBadge color="neutral" variant="soft">{{ mockEvents.length }}</UBadge>
+							<UBadge color="neutral" variant="soft">{{ upcomingEvents.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
-							<li v-for="ev in mockEvents" :key="ev.id" class="row">
+							<li v-if="!upcomingEvents.length" class="row row--empty">
+								<p class="sub">Brak nadchodzących terminów.</p>
+							</li>
+							<li v-for="ev in upcomingEvents" :key="ev.id" class="row">
 								<div class="row-body">
 									<p class="row-title">{{ ev.title }}</p>
-									<p class="sub">{{ formatDate(ev.date) }} · {{ ev.group }}</p>
+										<p class="sub">{{ formatAllDayDate(ev.date) }} · {{ ev.group }}</p>
 								</div>
 								<UBadge :class="groupMeta[ev.type].chip" variant="soft" size="sm">
 									{{ groupMeta[ev.type].label }}
@@ -183,37 +556,41 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 						</ul>
 					</div>
 
-					<!-- Plan zajęć -->
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<p class="kicker">Dzisiaj</p>
+								<p class="kicker">Zajęcia</p>
 								<h2 class="panel-title">Plan zajęć</h2>
 							</div>
 							<UBadge color="neutral" variant="soft">{{ todaySchedule.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
+							<li v-if="!todaySchedule.length" class="row row--empty">
+								<p class="sub">Brak zajęć na dziś.</p>
+							</li>
 							<li v-for="s in todaySchedule" :key="s.id" class="row">
 								<span class="sched-time">{{ s.time }}</span>
 								<div class="row-body">
 									<p class="row-title">{{ s.subject }}</p>
-									<p class="sub">{{ s.room }} · {{ scheduleTypeLabel[s.type] }}</p>
+									<p class="sub">{{ s.group }} · {{ groupMeta[s.type].label }}</p>
 								</div>
 							</li>
 						</ul>
 					</div>
 
-					<!-- Aktywność -->
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
 								<p class="kicker">Ostatnio</p>
 								<h2 class="panel-title">Aktywność</h2>
 							</div>
-							<UBadge color="primary" variant="soft">{{ mockActivities.length }}</UBadge>
+							<UBadge color="primary" variant="soft">{{ recentActivities.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
-							<li v-for="act in mockActivities" :key="act.id" class="row row--activity">
+							<li v-if="!recentActivities.length" class="row row--empty">
+								<p class="sub">Brak ostatnich aktywności.</p>
+							</li>
+							<li v-for="act in recentActivities" :key="act.id" class="row row--activity">
 								<span class="dot" :class="`dot-${act.kind}`" aria-hidden="true" />
 								<div class="row-body">
 									<p class="row-title">{{ act.title }}</p>
@@ -231,7 +608,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 </template>
 
 <style scoped>
-/* ── Outer shell ── */
 .dash {
 	height: 100%;
 	overflow: hidden;
@@ -241,7 +617,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	gap: 1rem;
 }
 
-/* ── Hero ── */
 .hero {
 	flex-shrink: 0;
 	padding: 1.15rem 1.25rem;
@@ -263,7 +638,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	color: var(--ui-text-muted);
 }
 
-/* ── Metrics ── */
 .metrics-grid {
 	flex-shrink: 0;
 	display: grid;
@@ -295,7 +669,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	color: #fff;
 }
 
-/* ── 3 columns ── */
 .cols {
 	flex: 1;
 	min-height: 0;
@@ -304,7 +677,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	gap: 0.75rem;
 }
 
-/* ── Panel (custom card that stretches) ── */
 .panel {
 	display: flex;
 	flex-direction: column;
@@ -340,7 +712,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	margin: 0;
 }
 
-/* ── Rows ── */
 .row {
 	display: flex;
 	align-items: center;
@@ -352,6 +723,11 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 .row:last-child { border-bottom: none; }
 
 .row--activity { align-items: flex-start; }
+
+.row--empty {
+	justify-content: center;
+	color: var(--ui-text-muted);
+}
 
 .row-body {
 	flex: 1;
@@ -367,7 +743,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	text-overflow: ellipsis;
 }
 
-/* ── Activity dot ── */
 .dot {
 	flex-shrink: 0;
 	width: 0.55rem;
@@ -380,8 +755,8 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 .dot-quiz    { background: #BA7517; }
 .dot-file    { background: #0F6E56; }
 .dot-summary { background: #6B7280; }
+.dot-event   { background: #7C3AED; }
 
-/* ── Schedule time ── */
 .sched-time {
 	flex-shrink: 0;
 	width: 5.5rem;
@@ -390,7 +765,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	color: var(--ui-text-muted);
 }
 
-/* ── Shared ── */
 .kicker {
 	font-size: 0.68rem;
 	font-weight: 700;
@@ -401,7 +775,6 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 
 .sub { font-size: 0.78rem; color: var(--ui-text-muted); }
 
-/* ── Colors ── */
 .tone-uni    { background: #0F6E56; }
 .tone-fac    { background: #185FA5; }
 .tone-course { background: #BA7517; }
@@ -409,8 +782,9 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 .chip-uni    { background: #E1F5EE; color: #0F6E56; }
 .chip-fac    { background: #E6F1FB; color: #185FA5; }
 .chip-course { background: #FAEEDA; color: #BA7517; }
+.chip-class  { background: #F3E8FF; color: #7C3AED; }
+.chip-personal { background: #FCE7F3; color: #BE185D; }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
 	.dash { padding: 0.75rem; overflow-y: auto; }
 	.cols { grid-template-columns: 1fr; flex: none; }
