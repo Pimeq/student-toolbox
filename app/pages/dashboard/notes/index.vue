@@ -348,14 +348,32 @@ const accentMap: Record<NoteColor, string> = {
 									</div>
 									<div class="flex-1 min-w-0">
 										<div class="mb-1.5" @click.stop>
-											<UButton size="xs" color="neutral" variant="outline" :class="[
-												'shrink-0 font-semibold transition-all duration-150',
-												note.visibility === 'shared'
-													? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-													: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-											]" :disabled="isSelectionMode || !note.is_owner" @click.stop="handleToggleVisibility(note)">
-												{{ note.visibility === 'shared' ? 'Sh' : 'Ps' }}
-											</UButton>
+											<button
+												v-if="note.is_owner && !isSelectionMode"
+												:class="[
+													'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-all duration-150 cursor-pointer',
+													note.visibility === 'shared'
+														? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
+														: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60'
+												]"
+												title="Kliknij aby zmienić widoczność"
+												@click.stop="handleToggleVisibility(note)"
+											>
+												<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="h-3 w-3 shrink-0" />
+												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
+											</button>
+											<span
+												v-else
+												:class="[
+													'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none select-none',
+													note.visibility === 'shared'
+														? 'border-emerald-200 bg-emerald-50/60 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+														: 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400'
+												]"
+											>
+												<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="h-3 w-3 shrink-0" />
+												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
+											</span>
 										</div>
 										<div v-if="isEditingTitle === note.id" class="flex gap-1">
 											<UInput v-model="editingTitleValue" class="flex-1" size="xs" color="primary"
