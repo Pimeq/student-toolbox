@@ -347,34 +347,13 @@ const accentMap: Record<NoteColor, string> = {
 										<UIcon name="i-lucide-file-text" class="h-[18px] w-[18px] shrink-0" />
 									</div>
 									<div class="flex-1 min-w-0">
-										<div class="mb-1.5" @click.stop>
-											<button
-												v-if="note.is_owner && !isSelectionMode"
-												:class="[
-													'group/vis inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-all duration-150 cursor-pointer hover:ring-1',
-													note.visibility === 'shared'
-														? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:ring-emerald-400/50 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
-														: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:ring-sky-400/50 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60'
-												]"
-												title="Kliknij aby zmienić widoczność"
-												@click.stop="handleToggleVisibility(note)"
-											>
-												<span class="relative h-3 w-3 shrink-0">
-													<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="absolute inset-0 h-3 w-3 transition-opacity duration-150 group-hover/vis:opacity-0" />
-													<UIcon name="i-lucide-arrow-left-right" class="absolute inset-0 h-3 w-3 opacity-0 transition-opacity duration-150 group-hover/vis:opacity-100" />
-												</span>
-												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
-												<UIcon name="i-lucide-pencil" class="h-2.5 w-2.5 shrink-0 ml-0.5 opacity-30 group-hover/vis:opacity-80 transition-opacity" />
-											</button>
-											<span
-												v-else
-												:class="[
-													'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none select-none',
-													note.visibility === 'shared'
-														? 'border-emerald-200 bg-emerald-50/60 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
-														: 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400'
-												]"
-											>
+										<div class="mb-1.5">
+											<span :class="[
+												'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none select-none',
+												note.visibility === 'shared'
+													? 'border-emerald-200 bg-emerald-50/60 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+													: 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400'
+											]">
 												<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="h-3 w-3 shrink-0" />
 												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
 											</span>
@@ -421,6 +400,12 @@ const accentMap: Record<NoteColor, string> = {
 									{{ formatDate(note.updated_at) }}
 								</div>
 								<div class="flex items-center gap-0.5">
+									<UButton v-if="!isSelectionMode && note.is_owner"
+										:icon="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'"
+										color="neutral" variant="ghost" size="xs"
+										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
+										:title="note.visibility === 'shared' ? 'Zmień na prywatną' : 'Udostępnij'"
+										@click.stop="handleToggleVisibility(note)" />
 									<UButton v-if="!isSelectionMode" icon="i-heroicons-sparkles" color="primary"
 										variant="ghost" size="xs"
 										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
