@@ -230,7 +230,6 @@ const extractUploaderName = (label: string) => {
 	return label.replace(/\s*\([^)]+\)\s*$/, '').trim()
 }
 
-// Mapowanie klas gradientów (Nuxt UI 3 color mapping helpers)
 const colorMap: Record<NoteColor, string> = {
 	blue: 'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400 border-blue-200 dark:border-blue-900',
 	emerald: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900',
@@ -238,6 +237,15 @@ const colorMap: Record<NoteColor, string> = {
 	amber: 'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400 border-amber-200 dark:border-amber-900',
 	rose: 'bg-rose-500/10 text-rose-600 dark:bg-rose-400/10 dark:text-rose-400 border-rose-200 dark:border-rose-900',
 	orange: 'bg-orange-500/10 text-orange-600 dark:bg-orange-400/10 dark:text-orange-400 border-orange-200 dark:border-orange-900'
+}
+
+const accentMap: Record<NoteColor, string> = {
+	blue: 'bg-blue-500',
+	emerald: 'bg-emerald-500',
+	purple: 'bg-purple-500',
+	amber: 'bg-amber-500',
+	rose: 'bg-rose-500',
+	orange: 'bg-orange-500'
 }
 </script>
 
@@ -314,101 +322,93 @@ const colorMap: Record<NoteColor, string> = {
 						Brak notatek w sekcji {{ section.label }}.
 					</div>
 
-					<div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-						<div v-for="note in section.notes" :key="note.id" class="group relative h-[270px]">
-							<UCard :class="[
-								'absolute inset-0 grid [grid-template-rows:auto_1fr_auto] cursor-pointer bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800 shadow-sm hover:shadow-md hover:ring-primary-500/50 transform-gpu scale-100 hover:scale-100 active:scale-100 transition-[box-shadow,ring-color,background-color] duration-200 overflow-hidden rounded-xl',
-								isSelectionMode && isNoteSelected(note.id) ? 'ring-2 ring-primary-500' : ''
-							]" :ui="{ header: 'p-4 pb-2', body: 'px-4 pt-1 pb-2 h-[98px] overflow-hidden', footer: 'px-4 py-2.5 border-t border-gray-100 dark:border-gray-800' }"
-								@click="handleCardClick(note.id)">
-								<template #header>
-									<div class="flex items-start justify-between gap-3">
-										<div v-if="isSelectionMode" class="pt-1" @click.stop>
-											<UCheckbox :model-value="isNoteSelected(note.id)"
-												@update:model-value="setNoteSelection(note.id, !!$event)" />
+					<div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+						<div
+							v-for="note in section.notes"
+							:key="note.id"
+							:class="[
+								'group cursor-pointer rounded-xl border bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col',
+								isSelectionMode && isNoteSelected(note.id)
+									? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-400/30'
+									: 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+							]"
+							@click="handleCardClick(note.id)"
+						>
+							<div class="h-1 w-full shrink-0" :class="accentMap[note.color || 'blue']" />
+
+							<div class="p-4 flex flex-col gap-3 flex-1">
+								<div class="flex items-start gap-3">
+									<div v-if="isSelectionMode" class="pt-0.5 shrink-0" @click.stop>
+										<UCheckbox :model-value="isNoteSelected(note.id)"
+											@update:model-value="setNoteSelection(note.id, !!$event)" />
+									</div>
+									<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border"
+										:class="colorMap[note.color || 'blue']">
+										<UIcon name="i-lucide-file-text" class="h-[18px] w-[18px] shrink-0" />
+									</div>
+									<div class="flex-1 min-w-0">
+										<div class="mb-1.5" @click.stop>
+											<UButton size="xs" color="neutral" variant="outline" :class="[
+												'shrink-0 font-semibold transition-all duration-150',
+												note.visibility === 'shared'
+													? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+													: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+											]" :disabled="isSelectionMode || !note.is_owner" @click.stop="handleToggleVisibility(note)">
+												{{ note.visibility === 'shared' ? 'Sh' : 'Ps' }}
+											</UButton>
 										</div>
-										<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border"
-											:class="colorMap[note.color || 'blue']">
-											<UIcon name="i-lucide-file-text" class="h-[18px] w-[18px] shrink-0" />
+										<div v-if="isEditingTitle === note.id" class="flex gap-1">
+											<UInput v-model="editingTitleValue" class="flex-1" size="xs" color="primary"
+												autofocus @click.stop @keydown.enter="saveTitle(note)"
+												@keydown.esc.stop="isEditingTitle = null" />
+											<UButton icon="i-lucide-check" color="success" size="xs" variant="ghost"
+												@click.stop="saveTitle(note)" />
 										</div>
-										<div class="flex-1 min-w-0">
-											<div class="flex items-center justify-between gap-2 mb-1" @click.stop>
-												<UButton size="xs" color="neutral" variant="outline" :class="[
-													'shrink-0 font-semibold transition-all duration-150 hover:shadow-sm',
-													note.visibility === 'shared'
-														? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
-														: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60'
-												]" :disabled="isSelectionMode || !note.is_owner" @click.stop="handleToggleVisibility(note)"
-													title="Zmień typ notatki Personal/Shared">
-													{{ note.visibility === 'shared' ? 'Sh' : 'Ps' }}
-												</UButton>
-											</div>
-											<div v-if="isEditingTitle === note.id"
-												class="w-full flex gap-1 -mt-1 -ml-1">
-												<UInput v-model="editingTitleValue" class="flex-1" size="xs"
-													color="primary" autofocus @click.stop
-													@keydown.enter="saveTitle(note)"
-													@keydown.esc.stop="isEditingTitle = null" />
-												<UButton icon="i-lucide-check" color="success" size="xs" variant="ghost"
-													@click.stop="saveTitle(note)" />
-											</div>
-											<div v-else class="flex items-center justify-between w-full group/title">
-												<h3 class="font-semibold text-gray-900 dark:text-white truncate"
-													@click.stop="startEditingTitle(note)">{{ note.title }}</h3>
-												<UButton v-if="!isSelectionMode && note.can_edit"
-													icon="i-lucide-pen-line" color="neutral" variant="ghost" size="xs"
-													class="opacity-0 group-hover/title:opacity-100 transition-opacity ml-1 shrink-0"
-													@click.stop="startEditingTitle(note)"
-													title="Edytuj przypiętą nazwę" />
-											</div>
-											<div class="mt-1 flex flex-wrap gap-1">
-												<span v-if="note.group_name"
-													class="inline-flex items-center rounded-md border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-600 dark:text-gray-300">
-													{{ note.group_name }}
-												</span>
-												<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] leading-none text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-													<UIcon name="i-lucide-mail" class="h-[11px] w-[11px] shrink-0" />
-													{{ extractUploaderName(note.shared_by_label) }}
-												</span>
-												<span v-if="extractUploaderRole(note.shared_by_label)"
-													class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] leading-none font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-													<UIcon name="i-lucide-user-round" class="h-[11px] w-[11px] shrink-0" />
-													{{ extractUploaderRole(note.shared_by_label) }}
-												</span>
-											</div>
+										<div v-else class="flex items-start justify-between w-full group/title gap-1">
+											<h3 class="font-semibold text-gray-900 dark:text-white text-sm leading-snug line-clamp-2"
+												@click.stop="startEditingTitle(note)">{{ note.title }}</h3>
+											<UButton v-if="!isSelectionMode && note.can_edit" icon="i-lucide-pen-line"
+												color="neutral" variant="ghost" size="xs"
+												class="opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0"
+												@click.stop="startEditingTitle(note)" />
 										</div>
 									</div>
-								</template>
-
-								<div class="h-full w-full overflow-hidden relative">
-									<p
-										class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed whitespace-normal break-words font-sans overflow-hidden [display:-webkit-box] [-webkit-line-clamp:5] [-webkit-box-orient:vertical] max-h-[98px]">
-										{{ note.preview }}
-									</p>
 								</div>
 
-								<template #footer>
-									<div
-										class="relative z-10 flex items-center justify-between w-full text-xs font-medium text-gray-400">
-										<div
-											class="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-											<UIcon name="i-lucide-clock" class="h-[12px] w-[12px] shrink-0" />
-											{{ formatDate(note.updated_at) }}
-										</div>
-										<div class="flex items-center gap-0.5">
-											<UButton v-if="!isSelectionMode" icon="i-heroicons-sparkles" color="primary"
-												variant="ghost" size="xs"
-												class="opacity-70 group-hover:opacity-100 transition-opacity z-10 shrink-0"
-												@click.stop="openQuizForNote(note.id)"
-												title="Wygeneruj quiz z tej notatki" />
-											<UButton v-if="!isSelectionMode && note.is_owner" icon="i-lucide-trash"
-												color="error" variant="ghost" size="xs"
-												class="opacity-70 group-hover:opacity-100 transition-opacity cursor-pointer z-10 shrink-0"
-												@click.stop="handleDeleteNote(note.id)" title="Usuń notatkę" />
-										</div>
-									</div>
-								</template>
-							</UCard>
+								<div class="flex flex-wrap gap-1">
+									<span v-if="note.group_name"
+										class="inline-flex items-center rounded-md border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+										{{ note.group_name }}
+									</span>
+									<span
+										class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] leading-none text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+										<UIcon name="i-lucide-mail" class="h-[11px] w-[11px] shrink-0" />
+										{{ extractUploaderName(note.shared_by_label) }}
+									</span>
+									<span v-if="extractUploaderRole(note.shared_by_label)"
+										class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] leading-none font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+										<UIcon name="i-lucide-user-round" class="h-[11px] w-[11px] shrink-0" />
+										{{ extractUploaderRole(note.shared_by_label) }}
+									</span>
+								</div>
+							</div>
+
+							<div class="px-4 py-2.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+								<div class="flex items-center gap-1.5 text-xs text-gray-400 opacity-80 group-hover:opacity-100 transition-opacity">
+									<UIcon name="i-lucide-clock" class="h-[12px] w-[12px] shrink-0" />
+									{{ formatDate(note.updated_at) }}
+								</div>
+								<div class="flex items-center gap-0.5">
+									<UButton v-if="!isSelectionMode" icon="i-heroicons-sparkles" color="primary"
+										variant="ghost" size="xs"
+										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
+										@click.stop="openQuizForNote(note.id)" title="Wygeneruj quiz z tej notatki" />
+									<UButton v-if="!isSelectionMode && note.is_owner" icon="i-lucide-trash" color="error"
+										variant="ghost" size="xs"
+										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
+										@click.stop="handleDeleteNote(note.id)" title="Usuń notatkę" />
+								</div>
+							</div>
 						</div>
 					</div>
 				</section>
