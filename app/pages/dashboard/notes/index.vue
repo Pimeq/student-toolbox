@@ -15,7 +15,7 @@ const selectedGroupId = ref<string>('')
 const isFetchingGroups = ref(false)
 
 const { status: fetchStatus } = useLazyAsyncData('user-notes', fetchNotes, { server: false })
-const isLoadingNotes = computed(() => fetchStatus.value === 'pending')
+const isLoadingNotes = computed(() => fetchStatus.value === 'pending' || fetchStatus.value === 'idle')
 
 onMounted(() => {
 	if (import.meta.client) {
@@ -179,7 +179,8 @@ const handleDeleteSelectedNotes = async () => {
 
 const handleCardClick = (id: string) => {
 	if (isSelectionMode.value) {
-		toggleNoteSelection(id)
+		const note = notes.value.find(n => n.id === id)
+		if (note?.is_owner) toggleNoteSelection(id)
 		return
 	}
 
@@ -327,7 +328,10 @@ const accentMap: Record<NoteColor, string> = {
 							v-for="note in section.notes"
 							:key="note.id"
 							:class="[
-								'group cursor-pointer rounded-xl border bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col',
+								'group rounded-xl border bg-white dark:bg-gray-900 shadow-sm transition-all duration-200 overflow-hidden flex flex-col',
+								isSelectionMode && !note.is_owner
+									? 'cursor-default opacity-50'
+									: 'cursor-pointer hover:shadow-md',
 								isSelectionMode && isNoteSelected(note.id)
 									? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-400/30'
 									: 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
@@ -338,7 +342,7 @@ const accentMap: Record<NoteColor, string> = {
 
 							<div class="p-4 flex flex-col gap-3 flex-1">
 								<div class="flex items-start gap-3">
-									<div v-if="isSelectionMode" class="pt-0.5 shrink-0" @click.stop>
+									<div v-if="isSelectionMode && note.is_owner" class="pt-0.5 shrink-0" @click.stop>
 										<UCheckbox :model-value="isNoteSelected(note.id)"
 											@update:model-value="setNoteSelection(note.id, !!$event)" />
 									</div>

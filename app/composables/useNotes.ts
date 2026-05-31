@@ -294,7 +294,23 @@ export const useNotes = () => {
 
     const existingById = new Map(notes.value.map(note => [note.id, note]))
 
-    const memberships = await getUserMemberships(currentUserId)
+    // Memberships + personal files in parallel (both only need currentUserId)
+    const [memberships, personalResult] = await Promise.all([
+      getUserMemberships(currentUserId),
+      supabase
+        .from('files')
+        .select('id, object_id, group_id, uploaded_by, name, created_at')
+        .eq('uploaded_by', currentUserId)
+        .is('group_id', null)
+        .eq('file_type', 'note')
+        .order('created_at', { ascending: false })
+    ])
+
+    if (personalResult.error) {
+      console.error('Błąd pobierania notatek personalnych:', personalResult.error)
+      return
+    }
+
     const membershipGroupIds = memberships.map(membership => membership.group_id)
     const membershipMap = memberships.reduce<Record<string, MembershipRole>>((acc, membership) => {
       acc[membership.group_id] = membership.role
@@ -302,57 +318,38 @@ export const useNotes = () => {
     }, {})
     membershipRoleByGroup.value = membershipMap
 
+    // Groups + shared files in parallel (both depend on membershipGroupIds)
     let groupsById = new Map<string, GroupRecord>()
-    if (membershipGroupIds.length > 0) {
-      const { data: groupRows, error: groupsError } = await supabase
-        .from('groups')
-        .select('id, name, type')
-        .in('id', membershipGroupIds)
-
-      if (!groupsError) {
-        groupsById = new Map((groupRows || []).map(group => [group.id, group as GroupRecord]))
-      }
-    }
-
-    const { data: personalData, error: personalError } = await supabase
-      .from('files')
-      .select('id, object_id, group_id, uploaded_by, name, created_at')
-      .eq('uploaded_by', currentUserId)
-      .is('group_id', null)
-      .eq('file_type', 'note')
-      .order('created_at', { ascending: false })
-
-    if (personalError) {
-      console.error('Błąd pobierania notatek personalnych:', personalError)
-      return
-    }
-
     let sharedData: FileRecord[] = []
-    if (membershipGroupIds.length > 0) {
-      const { data: groupData, error: groupError } = await supabase
-        .from('files')
-        .select('id, object_id, group_id, uploaded_by, name, created_at')
-        .in('group_id', membershipGroupIds)
-        .eq('file_type', 'note')
-        .order('created_at', { ascending: false })
 
-      if (groupError) {
-        console.error('Błąd pobierania notatek współdzielonych:', groupError)
+    if (membershipGroupIds.length > 0) {
+      const [groupsResult, sharedResult] = await Promise.all([
+        supabase
+          .from('groups')
+          .select('id, name, type')
+          .in('id', membershipGroupIds),
+        supabase
+          .from('files')
+          .select('id, object_id, group_id, uploaded_by, name, created_at')
+          .in('group_id', membershipGroupIds)
+          .eq('file_type', 'note')
+          .order('created_at', { ascending: false })
+      ])
+
+      if (!groupsResult.error) {
+        groupsById = new Map((groupsResult.data || []).map(group => [group.id, group as GroupRecord]))
+      }
+      if (sharedResult.error) {
+        console.error('Błąd pobierania notatek współdzielonych:', sharedResult.error)
       } else {
-        sharedData = (groupData || []) as FileRecord[]
+        sharedData = (sharedResult.data || []) as FileRecord[]
       }
     }
 
     const mergedByObjectId = new Map<string, FileRecord>()
-    for (const row of [...sharedData, ...((personalData || []) as FileRecord[])]) {
-      if (!row.group_id && row.uploaded_by !== currentUserId) {
-        continue
-      }
-
-      if (row.group_id && !membershipMap[row.group_id]) {
-        continue
-      }
-
+    for (const row of [...sharedData, ...((personalResult.data || []) as FileRecord[])]) {
+      if (!row.group_id && row.uploaded_by !== currentUserId) continue
+      if (row.group_id && !membershipMap[row.group_id]) continue
       mergedByObjectId.set(row.object_id, row)
     }
 
@@ -391,12 +388,11 @@ export const useNotes = () => {
       }
     })
 
+    // Update uploader labels in background — notes are already visible
     const sharedNotes = notes.value.filter(note => note.visibility === 'shared')
-    await Promise.all(sharedNotes.map(async (note) => {
+    Promise.all(sharedNotes.map(async (note) => {
       const { data: uploaderRows, error: uploaderError } = await (supabase as any)
-        .rpc('get_note_uploader_info', {
-          note_object_id: note.id
-        })
+        .rpc('get_note_uploader_info', { note_object_id: note.id })
 
       if (uploaderError) {
         console.error('Blad pobierania danych udostepniajacego notatke:', uploaderError)
@@ -406,7 +402,6 @@ export const useNotes = () => {
       const uploaderRow = ((uploaderRows || [])[0] || null) as NoteUploaderInfoRow | null
       note.shared_by_label = formatUploaderLabel(note.is_owner, uploaderRow, note.uploaded_by)
     }))
-
   }
 
   const getNote = (id: string) => {
