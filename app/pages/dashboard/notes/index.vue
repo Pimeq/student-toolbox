@@ -364,6 +364,7 @@ const accentMap: Record<NoteColor, string> = {
 													<UIcon name="i-lucide-arrow-left-right" class="absolute inset-0 h-3 w-3 opacity-0 transition-opacity duration-150 group-hover/vis:opacity-100" />
 												</span>
 												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
+												<UIcon name="i-lucide-pencil" class="h-2.5 w-2.5 shrink-0 ml-0.5 opacity-30 group-hover/vis:opacity-80 transition-opacity" />
 											</button>
 											<span
 												v-else
