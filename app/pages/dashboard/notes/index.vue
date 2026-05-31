@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import type { NoteColor, NoteItem } from '~/composables/useNotes'
 
 definePageMeta({
@@ -351,15 +351,18 @@ const accentMap: Record<NoteColor, string> = {
 											<button
 												v-if="note.is_owner && !isSelectionMode"
 												:class="[
-													'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-all duration-150 cursor-pointer',
+													'group/vis inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-all duration-150 cursor-pointer hover:ring-1',
 													note.visibility === 'shared'
-														? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
-														: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60'
+														? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:ring-emerald-400/50 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
+														: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:ring-sky-400/50 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60'
 												]"
 												title="Kliknij aby zmienić widoczność"
 												@click.stop="handleToggleVisibility(note)"
 											>
-												<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="h-3 w-3 shrink-0" />
+												<span class="relative h-3 w-3 shrink-0">
+													<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="absolute inset-0 h-3 w-3 transition-opacity duration-150 group-hover/vis:opacity-0" />
+													<UIcon name="i-lucide-arrow-left-right" class="absolute inset-0 h-3 w-3 opacity-0 transition-opacity duration-150 group-hover/vis:opacity-100" />
+												</span>
 												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
 											</button>
 											<span
