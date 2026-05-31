@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useNotes } from '~/composables/useNotes'
 import type { NoteColor, NoteItem } from '~/composables/useNotes'
 
 definePageMeta({
@@ -16,7 +13,23 @@ const targetNoteId = ref<string | null>(null)
 const userGroups = ref<any[]>([])
 const selectedGroupId = ref<string>('')
 const isFetchingGroups = ref(false)
-const isLoadingNotes = ref(true)
+
+const { status: fetchStatus } = useLazyAsyncData('user-notes', fetchNotes, { server: false })
+const isLoadingNotes = computed(() => fetchStatus.value === 'pending')
+
+onMounted(() => {
+	if (import.meta.client) {
+		document.documentElement.classList.remove('overflow-hidden')
+		document.body.classList.remove('overflow-hidden')
+		document.documentElement.removeAttribute('data-scroll-locked')
+		document.body.removeAttribute('data-scroll-locked')
+		document.documentElement.style.overflow = ''
+		document.body.style.overflow = ''
+		document.body.style.position = ''
+		document.body.style.width = ''
+		document.body.style.paddingRight = ''
+	}
+})
 
 const openGroupSelectModal = async (noteId: string) => {
 	targetNoteId.value = noteId
@@ -44,27 +57,6 @@ const confirmGroupSelection = async () => {
 		console.error(error)
 	}
 }
-
-onMounted(async () => {
-	try {
-		if (import.meta.client) {
-			document.documentElement.classList.remove('overflow-hidden')
-			document.body.classList.remove('overflow-hidden')
-			document.documentElement.removeAttribute('data-scroll-locked')
-			document.body.removeAttribute('data-scroll-locked')
-			document.documentElement.style.overflow = ''
-			document.body.style.overflow = ''
-			document.body.style.position = ''
-			document.body.style.width = ''
-			document.body.style.paddingRight = ''
-		}
-
-		isLoadingNotes.value = true
-		await fetchNotes()
-	} finally {
-		isLoadingNotes.value = false
-	}
-})
 
 const isEditingTitle = ref<string | null>(null)
 const editingTitleValue = ref('')

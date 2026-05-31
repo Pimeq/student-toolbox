@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, onDeactivated, watch } from 'vue'
-import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
-import { useNotes } from '~/composables/useNotes'
 
 interface LoadedNotePayload {
     id: string
@@ -23,13 +20,12 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
-const { getNote, saveNote: saveNoteToStore, fetchNotes, fetchNoteById } = useNotes()
+const { getNote, saveNote: saveNoteToStore, fetchNoteById } = useNotes()
 
 const noteId = ref(String(route.params.id))
 const title = ref('Ladowanie...')
 const content = ref<string | undefined>(undefined)
 const isSaving = ref(false)
-const isLoading = ref(true)
 const hasUnsavedChanges = ref(false)
 const lastSavedTitle = ref('')
 const lastSavedContent = ref('')
@@ -39,8 +35,35 @@ const canEdit = ref(false)
 const accessMessage = ref('')
 const noteGroupLabel = ref('')
 const sharedByLabel = ref('')
-const isFetchPending = ref(false)
-const showFloatingActions = computed(() => canEdit.value && !isLoading.value && !isFetchPending.value && !accessMessage.value)
+const currentNoteId = computed(() => String(route.params.id))
+
+const { status } = useLazyAsyncData(
+    () => `note-${currentNoteId.value}`,
+    async () => {
+        noteId.value = currentNoteId.value
+        try {
+            const payload = await fetchNoteById(currentNoteId.value)
+            if (!payload) {
+                setErrorState('Nie udalo sie zaladowac danych notatki.')
+                return
+            }
+            applyLoadedNote(payload)
+        } catch (error: any) {
+            const message = error.message || ''
+            if (message.includes('Nie masz dostepu') || message.includes('Brak autoryzacji')) {
+                setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
+            } else if (message.includes('nie istnieje') || message.includes('Nie znaleziono')) {
+                setErrorState('Notatka nie istnieje albo zostala usunieta.')
+            } else {
+                setErrorState(`Wystapil blad podczas ladowania notatki: ${message}`)
+            }
+        }
+    },
+    { server: false, watch: [currentNoteId] }
+)
+
+const isLoading = computed(() => status.value === 'pending')
+const showFloatingActions = computed(() => canEdit.value && !isLoading.value && !accessMessage.value)
 
 const releaseViewportLocks = () => {
     if (import.meta.server) return
@@ -131,41 +154,8 @@ const setErrorState = (message: string) => {
     hasUnsavedChanges.value = false
 }
 
-const loadNote = async () => {
-    isLoading.value = true
-    noteId.value = String(route.params.id)
-    isFetchPending.value = true
-
-    try {
-        await fetchNotes()
-        const payload = await fetchNoteById(noteId.value)
-
-        if (!payload) {
-            setErrorState('Nie udalo sie zaladowac danych notatki.')
-            return
-        }
-
-        applyLoadedNote(payload)
-    } catch (error: any) {
-        console.error('Blad ladowania notatki:', error)
-
-        const message = error.message || ''
-        if (message.includes('Nie masz dostepu') || message.includes('Brak autoryzacji')) {
-            setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
-        } else if (message.includes('nie istnieje') || message.includes('Nie znaleziono')) {
-            setErrorState('Notatka nie istnieje albo zostala usunieta.')
-        } else {
-            setErrorState(`Wystapil blad podczas ladowania notatki: ${message}`)
-        }
-    } finally {
-        isLoading.value = false
-        isFetchPending.value = false
-    }
-}
-
-onMounted(async () => {
+onMounted(() => {
     releaseViewportLocks()
-    await loadNote()
 })
 
 onBeforeRouteLeave(() => {
@@ -178,11 +168,6 @@ onBeforeUnmount(() => {
 
 onDeactivated(() => {
     releaseViewportLocks()
-})
-
-watch(() => route.params.id, async (newId, oldId) => {
-    if (String(newId) === String(oldId)) return
-    await loadNote()
 })
 
 watch(content, (newContent) => {
@@ -290,7 +275,7 @@ const saveNote = async () => {
         </UDashboardNavbar>
 
         <UDashboardPanelContent class="relative flex h-full flex-col overflow-y-auto bg-white p-0 pb-24 dark:bg-gray-900">
-            <div v-if="isLoading || isFetchPending" class="flex flex-1 items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
+            <div v-if="isLoading" class="flex flex-1 items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
                 <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
                 <span>Ladowanie notatki...</span>
             </div>

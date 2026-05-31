@@ -380,7 +380,7 @@ export const useNotes = () => {
         visibility: noteVisibility,
         title: dbFile.name,
         content: existingNote?.content || '',
-        preview: existingNote?.preview || 'Ładowanie podglądu...',
+        preview: existingNote?.preview || '',
         updated_at: existingNote?.updated_at || dbFile.created_at,
         color: noteColor,
         user_role: role,
@@ -407,79 +407,6 @@ export const useNotes = () => {
       note.shared_by_label = formatUploaderLabel(note.is_owner, uploaderRow, note.uploaded_by)
     }))
 
-    const fileNameByOwner = new Map<string, Map<string, string>>()
-    const ownerIds = [...new Set(notes.value.map(note => note.uploaded_by).filter(Boolean))]
-
-    await Promise.all(ownerIds.map(async (ownerId: string) => {
-      const { data: storageList, error: storageListError } = await supabase.storage
-        .from('files')
-        .list(`notes/${ownerId}`, {
-          limit: 1000,
-          offset: 0,
-          sortBy: { column: 'name', order: 'asc' }
-        })
-
-      if (storageListError || !storageList) {
-        console.error(`Błąd listowania plików notatek dla użytkownika ${ownerId}:`, storageListError)
-        fileNameByOwner.set(ownerId, new Map())
-        return
-      }
-
-      const safeEntries = storageList
-        .filter(file => Boolean(file.id))
-        .map(file => [file.id as string, file.name] as const)
-
-      fileNameByOwner.set(ownerId, new Map(safeEntries))
-    }))
-
-    await Promise.all(notes.value.map(async (note) => {
-      const ownerMap = fileNameByOwner.get(note.uploaded_by || '')
-      const fileName = ownerMap?.get(note.id)
-      if (!fileName) {
-        note.preview = 'Brak podglądu treści'
-        return
-      }
-
-      const storagePath = `notes/${note.uploaded_by}/${fileName}`
-
-      let text: string | null = null
-
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('files')
-        .createSignedUrl(storagePath, 60)
-
-      if (!signedError && signedData?.signedUrl) {
-        try {
-          const response = await fetch(signedData.signedUrl, { cache: 'no-store' })
-          if (response.ok) {
-            text = await response.text()
-          }
-        } catch (error) {
-          console.error('Błąd pobierania podglądu przez signed URL:', error)
-        }
-      }
-
-      if (text === null) {
-        const { data: fileData, error: downloadError } = await supabase.storage
-          .from('files')
-          .download(storagePath)
-
-        if (downloadError || !fileData) {
-          note.preview = 'Brak podglądu treści'
-          return
-        }
-
-        text = await fileData.text()
-      }
-
-      const h1Title = extractFirstH1(text)
-      if (h1Title) {
-        note.title = h1Title
-      }
-
-      note.content = text
-      note.preview = extractPreview(text)
-    }))
   }
 
   const getNote = (id: string) => {
