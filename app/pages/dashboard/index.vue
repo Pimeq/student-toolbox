@@ -126,6 +126,8 @@ const emptyDashboard = (): DashboardData => ({
 
 const supabase = useSupabaseClient<Database>()
 const user = useSupabaseUser()
+const loading = ref(true)
+const error = ref<''>('')
 
 type UserLike = { id?: string; sub?: string } | null | undefined
 
@@ -325,19 +327,24 @@ const loadDashboard = async (): Promise<DashboardData> => {
 	const queue = [...directGroupIds]
 
 	while (queue.length > 0) {
-		const groupId = queue.shift() as string
-		const parentId = parentGroupIdByChild.get(groupId)
-		if (parentId && !relatedGroupIds.has(parentId)) {
-			relatedGroupIds.add(parentId)
-			queue.push(parentId)
-		}
+        const groupId = queue.shift()
+        if (!groupId) continue 
 
-		for (const childId of childGroupIdsByParent.get(groupId) ?? []) {
-			if (relatedGroupIds.has(childId)) continue
-			relatedGroupIds.add(childId)
-			queue.push(childId)
-		}
-	}
+        const parentId = parentGroupIdByChild.get(groupId)
+        if (parentId && !relatedGroupIds.has(parentId)) {
+            relatedGroupIds.add(parentId)
+            queue.push(parentId)
+        }
+
+        const children = childGroupIdsByParent.get(groupId)
+        if (children && Array.isArray(children)) {
+            for (const childId of children) {
+                if (relatedGroupIds.has(childId)) continue
+                relatedGroupIds.add(childId)
+                queue.push(childId)
+            }
+        }
+    }
 
 	const accessibleGroupIds = Array.from(relatedGroupIds)
 
@@ -368,9 +375,7 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			.from("events")
 			.select("id, title, description, starts_at, ends_at, created_at, group_id, group:groups(id, name, type)")
 				.in("group_id", accessibleGroupIds)
-				.gte("starts_at", new Date().toISOString())
-			.order("starts_at", { ascending: true })
-			.limit(12),
+			.order("starts_at", { ascending: true }),
 	])
 
 	if (statsResult.error) throw statsResult.error
@@ -508,9 +513,13 @@ const loadDashboard = async (): Promise<DashboardData> => {
 	}
 }
 
-const { data } = await useAsyncData("dashboard-home", loadDashboard, {
-	default: emptyDashboard,
-	watch: [currentUserId],
+const { data, pending, error: dashboardError } = await useAsyncData("dashboard-home", loadDashboard, {
+    default: emptyDashboard,
+    watch: [currentUserId],
+})
+watchEffect(() => {
+    loading.value = pending.value
+    error.value = dashboardError.value ? (dashboardError.value.message || 'Wystąpił błąd') : ''
 })
 
 const metrics = computed<DashboardMetric[]>(() => [
@@ -531,7 +540,37 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 
 <template>
 	<div style="display: contents">
-		<UDashboardPanel>
+		<!-- Loading state -->
+		<UDashboardPanel v-if="loading">
+			<template #header>
+				<UDashboardNavbar title="Dashboard">
+					<template #leading>
+						<UDashboardSidebarCollapse />
+					</template>
+				</UDashboardNavbar>
+			</template>
+			<div class="dash" style="display: flex; align-items: center; justify-content: center; height: 100%;">
+				<p>Ładowanie...</p>
+			</div>
+		</UDashboardPanel>
+
+		<!-- Error state -->
+		<UDashboardPanel v-else-if="error">
+			<template #header>
+				<UDashboardNavbar title="Dashboard">
+					<template #leading>
+						<UDashboardSidebarCollapse />
+					</template>
+				</UDashboardNavbar>
+			</template>
+			<div class="dash" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center;">
+				<p class="text-red-500">Wystąpił błąd podczas ładowania danych: {{ error }}</p>
+				<button @click="window.location.reload()" class="mt-4 btn btn-sm btn-primary">Odśwież stronę</button>
+			</div>
+		</UDashboardPanel>
+
+		<!-- Success state -->
+		<UDashboardPanel v-else>
 			<template #header>
 				<UDashboardNavbar title="Dashboard">
 					<template #leading>
@@ -574,7 +613,10 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!upcomingEvents.length" class="row row--empty">
-								<p class="sub">Brak nadchodzących terminów.</p>
+								<div>
+									<p class="sub">Brak nadchodzących terminów.</p>
+									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">Dodaj wydarzenie</NuxtLink>
+								</div>
 							</li>
 							<li v-for="ev in upcomingEvents" :key="ev.id" class="row">
 								<div class="row-body">
@@ -597,7 +639,10 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!todaySchedule.length" class="row row--empty">
-								<p class="sub">Brak zajęć na dziś.</p>
+								<div>
+									<p class="sub">Brak zajęć na dziś.</p>
+									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">Zobacz harmonogram</NuxtLink>
+								</div>
 							</li>
 							<li v-for="s in todaySchedule" :key="s.id" class="row">
 								<span class="sched-time">{{ s.time }}</span>
@@ -618,7 +663,10 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!recentActivities.length" class="row row--empty">
-								<p class="sub">Brak ostatnich aktywności.</p>
+								<div>
+									<p class="sub">Brak ostatnich aktywności.</p>
+									<NuxtLink to="/dashboard/notes" class="btn btn-sm btn-primary mt-2">Zobacz wszystkie pliki</NuxtLink>
+								</div>
 							</li>
 							<li v-for="act in recentActivities" :key="act.id" class="row row--activity">
 								<span class="dot" :class="`dot-${act.kind}`" aria-hidden="true" />
@@ -821,3 +869,4 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 	.panel { min-height: 300px; }
 }
 </style>
+
