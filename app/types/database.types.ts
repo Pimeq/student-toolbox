@@ -111,8 +111,8 @@ export type Database = {
 					id: number
 					starts_at: string | null
 					title: string
-						uploaded_by: string
 					updated_at: string
+					uploaded_by: string
 				}
 				Insert: {
 					created_at?: string
@@ -122,8 +122,8 @@ export type Database = {
 					id?: number
 					starts_at?: string | null
 					title: string
-						uploaded_by: string
 					updated_at?: string
+					uploaded_by: string
 				}
 				Update: {
 					created_at?: string
@@ -133,8 +133,8 @@ export type Database = {
 					id?: number
 					starts_at?: string | null
 					title?: string
-						uploaded_by?: string
 					updated_at?: string
+					uploaded_by?: string
 				}
 				Relationships: [
 					{
@@ -180,7 +180,7 @@ export type Database = {
 				Row: {
 					created_at: string
 					file_type: Database["public"]["Enums"]["file_type"]
-					group_id: string
+					group_id: string | null
 					id: string
 					mime_type: string | null
 					name: string
@@ -191,7 +191,7 @@ export type Database = {
 				Insert: {
 					created_at?: string
 					file_type: Database["public"]["Enums"]["file_type"]
-					group_id: string
+					group_id?: string | null
 					id?: string
 					mime_type?: string | null
 					name: string
@@ -202,7 +202,7 @@ export type Database = {
 				Update: {
 					created_at?: string
 					file_type?: Database["public"]["Enums"]["file_type"]
-					group_id?: string
+					group_id?: string | null
 					id?: string
 					mime_type?: string | null
 					name?: string
@@ -240,26 +240,6 @@ export type Database = {
 					type?: Database["public"]["Enums"]["group_type"]
 				}
 				Relationships: []
-			}
-			personal_groups: {
-				Row: {
-					id: string
-				}
-				Insert: {
-					id: string
-				}
-				Update: {
-					id?: string
-				}
-				Relationships: [
-					{
-						foreignKeyName: "personal_groups_id_fkey"
-						columns: ["id"]
-						isOneToOne: true
-						referencedRelation: "groups"
-						referencedColumns: ["id"]
-					},
-				]
 			}
 			universities: {
 				Row: {
@@ -354,6 +334,26 @@ export type Database = {
 					name: string
 				}[]
 			}
+			get_file_uploader: {
+				Args: { file_id: string }
+				Returns: {
+					email: string
+					user_id: string
+					user_metadata: Json
+				}[]
+			}
+			get_note_uploader_info: {
+				Args: { note_object_id: string }
+				Returns: {
+					group_id: string
+					note_db_id: string
+					note_object_id_out: string
+					uploader_email: string
+					uploader_metadata: Json
+					uploader_role: Database["public"]["Enums"]["membership_role"]
+					uploader_user_id: string
+				}[]
+			}
 			get_universities: {
 				Args: never
 				Returns: {
@@ -366,6 +366,7 @@ export type Database = {
 			file_type: "note" | "summary" | "quiz" | "generic"
 			group_type: "university" | "faculty" | "course" | "class" | "personal"
 			membership_role: "student" | "instructor" | "admin"
+			visibility: "private" | "public"
 		}
 		CompositeTypes: {
 			[_ in never]: never
@@ -539,6 +540,7 @@ export const Constants = {
 			file_type: ["note", "summary", "quiz", "generic"],
 			group_type: ["university", "faculty", "course", "class", "personal"],
 			membership_role: ["student", "instructor", "admin"],
+			visibility: ["private", "public"],
 		},
 	},
 } as const
