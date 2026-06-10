@@ -135,11 +135,67 @@
 		}
 	}
 
+	// Fetch files for selected group (notes, quizzes, summaries)
+	type FileType = Database["public"]["Enums"]["file_type"]
+	const groupFiles = ref<Tables<"files">[]>([])
+	const filesLoading = ref(false)
+
+	const loadFiles = async () => {
+		if (!selectedGroupId.value) {
+			groupFiles.value = []
+			return
+		}
+		filesLoading.value = true
+		try {
+			const { data, error } = await supabase
+				.from("files")
+				.select("*")
+				.eq("group_id", selectedGroupId.value)
+				.in("file_type", ["note", "quiz", "summary"] as FileType[])
+				.order("created_at", { ascending: false })
+
+			if (error) throw error
+			groupFiles.value = data ?? []
+		} catch (err) {
+			console.error("Failed to load files:", err)
+		} finally {
+			filesLoading.value = false
+		}
+	}
+
+	// Filter files by type
+	const notes = computed(() => groupFiles.value.filter(f => f.file_type === "note"))
+	const quizzes = computed(() => groupFiles.value.filter(f => f.file_type === "quiz"))
+	const summaries = computed(() => groupFiles.value.filter(f => f.file_type === "summary"))
+
+	// Delete file
+	const deleteFile = async (fileId: string) => {
+		if (!confirm("Delete this file?")) return
+		try {
+			// First get the file to delete from storage
+			const file = groupFiles.value.find(f => f.id === fileId)
+			if (file?.object_id) {
+				await supabase.storage.from("files").remove([file.object_id])
+			}
+			// Then delete from db
+			const { error } = await supabase
+				.from("files")
+				.delete()
+				.eq("id", fileId)
+
+			if (error) throw error
+			loadFiles()
+		} catch (err) {
+			alert("Failed to delete file: " + (err as Error).message)
+		}
+	}
+
 	// Watch for group selection changes
 	watch(selectedGroupId, () => {
 		if (selectedGroupId.value) {
 			loadMembers()
 			loadChildGroups()
+			loadFiles()
 		}
 	}, { immediate: true })
 
@@ -293,7 +349,34 @@
 		}
 	}
 
-	const activeTab = ref<"members" | "subgroups">("members")
+	const getFileTypeColor = (type: FileType) => {
+		switch (type) {
+			case "note": return "primary"
+			case "quiz": return "warning"
+			case "summary": return "success"
+			default: return "outline"
+		}
+	}
+
+	const formatFileSize = (bytes: number | null) => {
+		if (!bytes) return "Unknown size"
+		if (bytes < 1024) return bytes + " B"
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
+		return (bytes / (1024 * 1024)).toFixed(1) + " MB"
+	}
+
+	const formatDate = (dateString: string) => {
+		return new Date(dateString).toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		})
+	}
+
+	// Tabs: "members" | "subgroups" | "content"
+	const activeTab = ref<"members" | "subgroups" | "content">("members")
+	// Sub-tabs for content: "notes" | "quizzes" | "summaries"
+	const contentTab = ref<"notes" | "quizzes" | "summaries">("notes")
 </script>
 
 <template>
@@ -368,7 +451,7 @@
 								</div>
 							</template>
 
-							<!-- Simple Tab Navigation -->
+							<!-- Tab Navigation -->
 							<div class="flex gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
 								<button
 									@click="activeTab = 'members'"
@@ -377,7 +460,7 @@
 										? 'border-primary-500 text-primary-600'
 										: 'border-transparent text-gray-500 hover:text-gray-700'"
 								>
-									Members ({{ selectedGroupMembers.length }})
+									Members
 								</button>
 								<button
 									@click="activeTab = 'subgroups'"
@@ -386,7 +469,16 @@
 										? 'border-primary-500 text-primary-600'
 										: 'border-transparent text-gray-500 hover:text-gray-700'"
 								>
-									Subgroups ({{ childGroups.length }})
+									Subgroups
+								</button>
+								<button
+									@click="activeTab = 'content'"
+									class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+									:class="activeTab === 'content'
+										? 'border-primary-500 text-primary-600'
+										: 'border-transparent text-gray-500 hover:text-gray-700'"
+								>
+									Content
 								</button>
 							</div>
 
@@ -411,7 +503,7 @@
 
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold">Members</h3>
+										<h3 class="font-semibold">Members ({{ selectedGroupMembers.length }})</h3>
 									</template>
 									<div v-if="membersLoading" class="text-center py-4 text-gray-500">
 										Loading...
@@ -428,8 +520,10 @@
 													size="md"
 												/>
 												<div>
-													<div class="font-medium text-sm">{{ member.user_id.slice(0, 20) }}...</div>
-													<div class="text-xs text-gray-500">ID: {{ member.user_id.slice(0, 12) }}...</div>
+													<div class="font-medium text-sm">
+														User {{ member.user_id.slice(0, 8) }}
+													</div>
+													<div class="text-xs text-gray-500">ID: {{ member.user_id }}</div>
 												</div>
 											</div>
 											<div class="flex items-center gap-2">
@@ -480,7 +574,7 @@
 
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold">Subgroups</h3>
+										<h3 class="font-semibold">Subgroups ({{ childGroups.length }})</h3>
 									</template>
 									<div v-if="subgroupsLoading" class="text-center py-4 text-gray-500">
 										Loading...
@@ -502,6 +596,124 @@
 									</div>
 									<div v-else class="text-center py-8 text-gray-500">
 										No subgroups yet
+									</div>
+								</UCard>
+							</div>
+
+							<!-- Content Tab -->
+							<div v-if="activeTab === 'content'" class="space-y-4">
+								<!-- Content Sub-tabs -->
+								<div class="flex gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
+									<button
+										@click="contentTab = 'notes'"
+										class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+										:class="contentTab === 'notes'
+											? 'border-primary-500 text-primary-600'
+											: 'border-transparent text-gray-500 hover:text-gray-700'"
+									>
+										Notes ({{ notes.length }})
+									</button>
+									<button
+										@click="contentTab = 'quizzes'"
+										class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+										:class="contentTab === 'quizzes'
+											? 'border-primary-500 text-primary-600'
+											: 'border-transparent text-gray-500 hover:text-gray-700'"
+									>
+										Quizzes ({{ quizzes.length }})
+									</button>
+									<button
+										@click="contentTab = 'summaries'"
+										class="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+										:class="contentTab === 'summaries'
+											? 'border-primary-500 text-primary-600'
+											: 'border-transparent text-gray-500 hover:text-gray-700'"
+									>
+										Summaries ({{ summaries.length }})
+									</button>
+								</div>
+
+								<UCard>
+									<template #header>
+										<h3 class="font-semibold capitalize">{{ contentTab }}</h3>
+									</template>
+									<div v-if="filesLoading" class="text-center py-4 text-gray-500">
+										Loading...
+									</div>
+									<div v-else-if="contentTab === 'notes' && notes.length">
+										<div class="divide-y">
+											<div
+												v-for="file in notes"
+												:key="file.id"
+												class="flex items-center justify-between py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+											>
+												<div class="flex items-center gap-3">
+													<div class="w-8 h-8 rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+														<span class="text-blue-600 dark:text-blue-400 text-xs font-bold">N</span>
+													</div>
+													<div>
+														<div class="font-medium text-sm">{{ file.name }}</div>
+														<div class="text-xs text-gray-500">
+															{{ formatFileSize(file.size) }} • {{ formatDate(file.created_at) }}
+														</div>
+													</div>
+												</div>
+												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
+													Delete
+												</UButton>
+											</div>
+										</div>
+									</div>
+									<div v-else-if="contentTab === 'quizzes' && quizzes.length">
+										<div class="divide-y">
+											<div
+												v-for="file in quizzes"
+												:key="file.id"
+												class="flex items-center justify-between py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+											>
+												<div class="flex items-center gap-3">
+													<div class="w-8 h-8 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+														<span class="text-amber-600 dark:text-amber-400 text-xs font-bold">Q</span>
+													</div>
+													<div>
+														<div class="font-medium text-sm">{{ file.name }}</div>
+														<div class="text-xs text-gray-500">
+															{{ formatFileSize(file.size) }} • {{ formatDate(file.created_at) }}
+														</div>
+													</div>
+												</div>
+												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
+													Delete
+												</UButton>
+											</div>
+										</div>
+									</div>
+									<div v-else-if="contentTab === 'summaries' && summaries.length">
+										<div class="divide-y">
+											<div
+												v-for="file in summaries"
+												:key="file.id"
+												class="flex items-center justify-between py-3 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+											>
+												<div class="flex items-center gap-3">
+													<div class="w-8 h-8 rounded bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+														<span class="text-green-600 dark:text-green-400 text-xs font-bold">S</span>
+													</div>
+													<div>
+														<div class="font-medium text-sm">{{ file.name }}</div>
+														<div class="text-xs text-gray-500">
+															{{ formatFileSize(file.size) }} • {{ formatDate(file.created_at) }}
+														</div>
+													</div>
+												</div>
+												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
+													Delete
+												</UButton>
+											</div>
+										</div>
+									</div>
+									<div v-else class="text-center py-8 text-gray-500">
+										No {{ contentTab }} in this group yet
 									</div>
 								</UCard>
 							</div>
