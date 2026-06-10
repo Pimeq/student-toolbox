@@ -37,6 +37,11 @@ const items: NavigationMenuItem[] = [
 		icon: "i-lucide-lightbulb",
 		to: "/dashboard/quiz",
 	},
+	{
+		label: "Summaries",
+		icon: "i-lucide-text",
+		to: "/dashboard/summary",
+	},
 ]
 
 const footerItems: NavigationMenuItem[] = [
