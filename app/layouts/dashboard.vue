@@ -37,14 +37,43 @@ const items: NavigationMenuItem[] = [
 		icon: "i-lucide-lightbulb",
 		to: "/dashboard/quiz",
 	},
+	{
+		label: "Summaries",
+		icon: "i-lucide-text",
+		to: "/dashboard/summary",
+	},
 ]
 
 const footerItems: NavigationMenuItem[] = [
 	{
 		label: "Settings",
 		icon: "i-lucide-settings",
+		to: "/dashboard/settings",
 	},
 ]
+
+const { isAdmin, fetchUserRoles, userRoles } = useUserRole()
+
+// Fetch admin status on mount
+onMounted(() => {
+	fetchUserRoles()
+})
+
+// Compute admin navigation items based on user role
+const adminItems = computed<NavigationMenuItem[]>(() => {
+	const anyAdmin = Object.values(userRoles.value).includes('admin')
+	if (!anyAdmin) return []
+	return [
+		{
+			label: "Admin",
+			icon: "i-lucide-shield",
+			to: "/dashboard/admin",
+		},
+	]
+})
+
+// Combine items with conditional admin section
+const navItems = computed(() => [...items, ...adminItems.value])
 
 defineExpose({
 	handleToggle,
@@ -84,7 +113,7 @@ defineExpose({
 	<UDashboardGroup>
 		<UDashboardSidebar collapsible>
 			<template #default="{ collapsed }">
-				<UNavigationMenu :collapsed="collapsed" :items="items" orientation="vertical" />
+				<UNavigationMenu :collapsed="collapsed" :items="navItems" orientation="vertical" />
 			</template>
 
 			<template #footer="{ collapsed }">
