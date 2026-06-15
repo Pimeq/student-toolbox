@@ -387,7 +387,7 @@ const loadDashboard = async (): Promise<DashboardData> => {
 	const eventRows = (eventsResult.data ?? []) as EventRow[]
 
 	const stats: DashboardStats = {
-		materials: fileStats.length,
+		materials: fileStats.filter(f => !["note","summary","quiz"].includes(f.file_type)).length,
 		notes: fileStats.filter((file) => file.file_type === "note").length,
 		summaries: fileStats.filter((file) => file.file_type === "summary").length,
 		quizzes: fileStats.filter((file) => file.file_type === "quiz").length,
