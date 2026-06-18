@@ -124,6 +124,9 @@ const emptyDashboard = (): DashboardData => ({
 	stats: { materials: 0, notes: 0, summaries: 0, quizzes: 0 },
 })
 
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
+
 const supabase = useSupabaseClient<Database>()
 const user = useSupabaseUser()
 const loading = ref(true)
@@ -141,31 +144,26 @@ const displayName = computed(() => {
 	const fullName = user.value?.user_metadata?.full_name as string | undefined
 	if (fullName) return fullName
 	const email = user.value?.email
-	return email ? email.split("@")[0] : "Student"
+	return email ? email.split("@")[0] : t("dashboard.studentFallback")
 })
 
-const groupMeta: Record<GroupType, { label: string; chip: string }> = {
-	university: { label: "Uniwersytet", chip: "chip-uni" },
-	faculty: { label: "Wydział", chip: "chip-fac" },
-	course: { label: "Kierunek", chip: "chip-course" },
-	class: { label: "Zajęcia", chip: "chip-class" },
-	personal: { label: "Prywatne", chip: "chip-personal" },
+const groupChip: Record<GroupType, string> = {
+	university: "chip-uni",
+	faculty: "chip-fac",
+	course: "chip-course",
+	class: "chip-class",
+	personal: "chip-personal",
 }
 
-const activityKindLabel: Record<ActivityKind, string> = {
-	note: "Notatka",
-	summary: "Streszczenie",
-	quiz: "Quiz",
-	generic: "Plik",
-	event: "Wydarzenie",
-}
+const groupLabel = (type: GroupType) => t(`groupType.${type}`)
+const activityLabel = (kind: ActivityKind) => t(`dashboard.activityKind.${kind}`)
 
 const formatRelativeTime = (value: string) => {
 	const diffMinutes = Math.round((Date.now() - new Date(value).getTime()) / 60000)
-	if (Number.isNaN(diffMinutes)) return "ostatnio"
-	if (Math.abs(diffMinutes) < 1) return "teraz"
+	if (Number.isNaN(diffMinutes)) return t("dashboard.recently")
+	if (Math.abs(diffMinutes) < 1) return t("dashboard.justNow")
 
-	const formatter = new Intl.RelativeTimeFormat("pl-PL", { numeric: "auto" })
+	const formatter = new Intl.RelativeTimeFormat(intlLocale.value, { numeric: "auto" })
 	if (Math.abs(diffMinutes) < 60) return formatter.format(-diffMinutes, "minute")
 
 	const diffHours = Math.round(diffMinutes / 60)
@@ -247,7 +245,7 @@ function parseStoredDescription(raw?: string | null): ParsedDescription {
 }
 
 const formatAllDayDate = (value: string) =>
-	new Date(normalizeDbDateTime(value)).toLocaleDateString('pl-PL', { dateStyle: 'medium' })
+	new Date(normalizeDbDateTime(value)).toLocaleDateString(intlLocale.value, { dateStyle: 'medium' })
 
 const isAllDayEvent = (startsAt: string | null, endsAt: string | null) => {
 	if (!startsAt || !endsAt) return false
@@ -262,13 +260,8 @@ const resolveGroup = (group: RelatedGroup, fallbackId: string) => ({
 	type: group?.type ?? "personal",
 })
 
-const sessionKindLabel: Record<ParsedDescription['sessionKind'], string> = {
-	'': '',
-	lecture: 'Wykład',
-	lab: 'Laboratorium',
-	exercise: 'Ćwiczenia',
-	project: 'Projekt',
-}
+const sessionKindLabel = (kind: ParsedDescription['sessionKind']) =>
+	kind ? t(`sessionKind.${kind}`) : ''
 
 const loadDashboard = async (): Promise<DashboardData> => {
 	const userId = currentUserId.value
@@ -444,8 +437,8 @@ const loadDashboard = async (): Promise<DashboardData> => {
 		.filter((event) => event.moment >= todayStart.getTime() && event.moment < tomorrowStart.getTime())
 		.slice(0, 5)
 		.map((event) => {
-			const startTime = new Date(event.startsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })
-			const endTime = event.endsAt ? new Date(event.endsAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }) : ''
+			const startTime = new Date(event.startsAt).toLocaleTimeString(intlLocale.value, { hour: "2-digit", minute: "2-digit" })
+			const endTime = event.endsAt ? new Date(event.endsAt).toLocaleTimeString(intlLocale.value, { hour: "2-digit", minute: "2-digit" }) : ''
 			const time = endTime && endTime !== startTime ? `${startTime} – ${endTime}` : startTime
 
 			return {
@@ -468,7 +461,7 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			return {
 				id: `file-${file.id}`,
 				title: file.name,
-				detail: `${activityKindLabel[file.file_type]} · ${group.name}`,
+				detail: `${activityLabel(file.file_type)} · ${group.name}`,
 				time: formatRelativeTime(file.created_at),
 				kind: file.file_type,
 				moment: new Date(file.created_at).getTime(),
@@ -481,7 +474,7 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			.map((event) => {
 				const group = resolveGroup(event.group, event.group_id)
 				const parsed = parseStoredDescription(event.description)
-				const sessionLabel = parsed.sessionKind ? sessionKindLabel[parsed.sessionKind] : groupMeta[group.type].label
+				const sessionLabel = parsed.sessionKind ? sessionKindLabel(parsed.sessionKind) : groupLabel(group.type)
 				const location = parsed.location ? ` · ${parsed.location}` : ''
 				return {
 					id: `event-${event.id}`,
@@ -506,7 +499,7 @@ const loadDashboard = async (): Promise<DashboardData> => {
 			id: event.id,
 			subject: event.title,
 			group: event.group,
-			time: new Date(event.date).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }),
+			time: new Date(event.date).toLocaleTimeString(intlLocale.value, { hour: "2-digit", minute: "2-digit" }),
 			type: event.type,
 		})),
 		stats,
@@ -519,23 +512,23 @@ const { data, pending, error: dashboardError } = await useAsyncData("dashboard-h
 })
 watchEffect(() => {
     loading.value = pending.value
-    error.value = dashboardError.value ? (dashboardError.value.message || 'Wystąpił błąd') : ''
+    error.value = dashboardError.value ? (dashboardError.value.message || t('dashboard.genericError')) : ''
 })
 
 const metrics = computed<DashboardMetric[]>(() => [
-	{ label: "Materiały", value: String(data.value?.stats.materials ?? 0), note: "Zasoby do przeglądu", icon: "i-lucide-folder-open", tone: "tone-course" },
-	{ label: "Notatki", value: String(data.value?.stats.notes ?? 0), note: "Opracowania z zajęć", icon: "i-lucide-notebook-pen", tone: "tone-uni" },
-	{ label: "Streszczenia", value: String(data.value?.stats.summaries ?? 0), note: "Gotowe skróty treści", icon: "i-lucide-file-text", tone: "tone-fac" },
-	{ label: "Quizy", value: String(data.value?.stats.quizzes ?? 0), note: "Szybkie powtórki", icon: "i-lucide-award", tone: "tone-course" },
+	{ label: t("dashboard.metrics.materials"), value: String(data.value?.stats.materials ?? 0), note: t("dashboard.metrics.materialsNote"), icon: "i-lucide-folder-open", tone: "tone-course" },
+	{ label: t("dashboard.metrics.notes"), value: String(data.value?.stats.notes ?? 0), note: t("dashboard.metrics.notesNote"), icon: "i-lucide-notebook-pen", tone: "tone-uni" },
+	{ label: t("dashboard.metrics.summaries"), value: String(data.value?.stats.summaries ?? 0), note: t("dashboard.metrics.summariesNote"), icon: "i-lucide-file-text", tone: "tone-fac" },
+	{ label: t("dashboard.metrics.quizzes"), value: String(data.value?.stats.quizzes ?? 0), note: t("dashboard.metrics.quizzesNote"), icon: "i-lucide-award", tone: "tone-course" },
 ])
 
 const upcomingEvents = computed(() => data.value?.events ?? [])
 const recentActivities = computed(() => data.value?.activities ?? [])
 const todaySchedule = computed(() => data.value?.schedule ?? [])
 
-const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
+const heroDateTime = computed(() => new Intl.DateTimeFormat(intlLocale.value, {
 	weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
-}).format(new Date())
+}).format(new Date()))
 </script>
 
 <template>
@@ -543,36 +536,36 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 		<!-- Loading state -->
 		<UDashboardPanel v-if="loading">
 			<template #header>
-				<UDashboardNavbar title="Dashboard">
+				<UDashboardNavbar :title="t('dashboard.title')">
 					<template #leading>
 						<UDashboardSidebarCollapse />
 					</template>
 				</UDashboardNavbar>
 			</template>
 			<div class="dash" style="display: flex; align-items: center; justify-content: center; height: 100%;">
-				<p>Ładowanie...</p>
+				<p>{{ t('dashboard.loading') }}</p>
 			</div>
 		</UDashboardPanel>
 
 		<!-- Error state -->
 		<UDashboardPanel v-else-if="error">
 			<template #header>
-				<UDashboardNavbar title="Dashboard">
+				<UDashboardNavbar :title="t('dashboard.title')">
 					<template #leading>
 						<UDashboardSidebarCollapse />
 					</template>
 				</UDashboardNavbar>
 			</template>
 			<div class="dash" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center;">
-				<p class="text-red-500">Wystąpił błąd podczas ładowania danych: {{ error }}</p>
-				<button @click="window.location.reload()" class="mt-4 btn btn-sm btn-primary">Odśwież stronę</button>
+				<p class="text-red-500">{{ t('dashboard.errorLoading', { message: error }) }}</p>
+				<button @click="window.location.reload()" class="mt-4 btn btn-sm btn-primary">{{ t('dashboard.refresh') }}</button>
 			</div>
 		</UDashboardPanel>
 
 		<!-- Success state -->
 		<UDashboardPanel v-else>
 			<template #header>
-				<UDashboardNavbar title="Dashboard">
+				<UDashboardNavbar :title="t('dashboard.title')">
 					<template #leading>
 						<UDashboardSidebarCollapse />
 					</template>
@@ -583,11 +576,11 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 
 				<section class="hero">
 					<p class="kicker">{{ heroDateTime }}</p>
-					<h1 class="hero-title">Witaj, {{ displayName }}</h1>
-					<p class="hero-desc">Szybki przegląd materiałów, aktywności i grup.</p>
+					<h1 class="hero-title">{{ t('dashboard.greeting', { name: displayName }) }}</h1>
+					<p class="hero-desc">{{ t('dashboard.overview') }}</p>
 				</section>
 
-				<section class="metrics-grid" aria-label="Statystyki">
+				<section class="metrics-grid" :aria-label="t('dashboard.statsAria')">
 					<UCard v-for="m in metrics" :key="m.label">
 						<div class="metric-row">
 							<div class="icon-box" :class="m.tone">
@@ -607,15 +600,15 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<h2 class="panel-title">Nadchodzące terminy</h2>
+								<h2 class="panel-title">{{ t('dashboard.upcomingTitle') }}</h2>
 							</div>
 							<UBadge color="neutral" variant="soft">{{ upcomingEvents.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!upcomingEvents.length" class="row row--empty">
 								<div>
-									<p class="sub">Brak nadchodzących terminów.</p>
-									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">Dodaj wydarzenie</NuxtLink>
+									<p class="sub">{{ t('dashboard.upcomingEmpty') }}</p>
+									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">{{ t('dashboard.addEvent') }}</NuxtLink>
 								</div>
 							</li>
 							<li v-for="ev in upcomingEvents" :key="ev.id" class="row">
@@ -623,8 +616,8 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 									<p class="row-title">{{ ev.title }}</p>
 										<p class="sub">{{ formatAllDayDate(ev.date) }} · {{ ev.group }}</p>
 								</div>
-								<UBadge :class="groupMeta[ev.type].chip" variant="soft" size="sm">
-									{{ groupMeta[ev.type].label }}
+								<UBadge :class="groupChip[ev.type]" variant="soft" size="sm">
+									{{ groupLabel(ev.type) }}
 								</UBadge>
 							</li>
 						</ul>
@@ -633,22 +626,22 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<h2 class="panel-title">Plan zajęć</h2>
+								<h2 class="panel-title">{{ t('dashboard.scheduleTitle') }}</h2>
 							</div>
 							<UBadge color="neutral" variant="soft">{{ todaySchedule.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!todaySchedule.length" class="row row--empty">
 								<div>
-									<p class="sub">Brak zajęć na dziś.</p>
-									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">Zobacz harmonogram</NuxtLink>
+									<p class="sub">{{ t('dashboard.scheduleEmpty') }}</p>
+									<NuxtLink to="/dashboard/calendar" class="btn btn-sm btn-primary mt-2">{{ t('dashboard.viewSchedule') }}</NuxtLink>
 								</div>
 							</li>
 							<li v-for="s in todaySchedule" :key="s.id" class="row">
 								<span class="sched-time">{{ s.time }}</span>
 								<div class="row-body">
 									<p class="row-title">{{ s.subject }}</p>
-									<p class="sub">{{ s.group }} · {{ groupMeta[s.type].label }}</p>
+									<p class="sub">{{ s.group }} · {{ groupLabel(s.type) }}</p>
 								</div>
 							</li>
 						</ul>
@@ -657,15 +650,15 @@ const heroDateTime = new Intl.DateTimeFormat("pl-PL", {
 					<div class="panel">
 						<div class="panel-hd">
 							<div>
-								<h2 class="panel-title">Aktywność</h2>
+								<h2 class="panel-title">{{ t('dashboard.activityTitle') }}</h2>
 							</div>
 							<UBadge color="primary" variant="soft">{{ recentActivities.length }}</UBadge>
 						</div>
 						<ul class="panel-bd">
 							<li v-if="!recentActivities.length" class="row row--empty">
 								<div>
-									<p class="sub">Brak ostatnich aktywności.</p>
-									<NuxtLink to="/dashboard/notes" class="btn btn-sm btn-primary mt-2">Zobacz wszystkie pliki</NuxtLink>
+									<p class="sub">{{ t('dashboard.activityEmpty') }}</p>
+									<NuxtLink to="/dashboard/notes" class="btn btn-sm btn-primary mt-2">{{ t('dashboard.viewAllFiles') }}</NuxtLink>
 								</div>
 							</li>
 							<li v-for="act in recentActivities" :key="act.id" class="row row--activity">

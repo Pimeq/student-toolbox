@@ -66,6 +66,7 @@
 		name: string
 	}
 
+	const { t } = useI18n()
 	const UCheckbox = resolveComponent("UCheckbox")
 	const columns: TableColumn<Group>[] = [
 		{
@@ -78,19 +79,19 @@
 						),
 					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
 						table.toggleAllPageRowsSelected(!!value),
-					"aria-label": "Select all",
+					"aria-label": t("onboarding.selectAll"),
 				}),
 			cell: ({ row }) =>
 				h(UCheckbox, {
 					modelValue: row.getIsSelected(),
 					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
 						row.toggleSelected(!!value),
-					"aria-label": "Select row",
+					"aria-label": t("onboarding.selectRow"),
 				}),
 		},
 		{
 			accessorKey: "name",
-			header: "Name",
+			header: t("onboarding.columnName"),
 		},
 	]
 </script>

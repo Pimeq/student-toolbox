@@ -20,10 +20,11 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const { getNote, saveNote: saveNoteToStore, fetchNoteById } = useNotes()
 
 const noteId = ref(String(route.params.id))
-const title = ref('Ladowanie...')
+const title = ref(t('noteEditor.loading'))
 const content = ref<string | undefined>(undefined)
 const isSaving = ref(false)
 const hasUnsavedChanges = ref(false)
@@ -44,18 +45,18 @@ const { status } = useLazyAsyncData(
         try {
             const payload = await fetchNoteById(currentNoteId.value)
             if (!payload) {
-                setErrorState('Nie udalo sie zaladowac danych notatki.')
+                setErrorState(t('noteEditor.loadFailed'))
                 return
             }
             applyLoadedNote(payload)
         } catch (error: any) {
             const message = error.message || ''
             if (message.includes('Nie masz dostepu') || message.includes('Brak autoryzacji')) {
-                setErrorState('Nie nalezysz do grupy tej notatki lub nie masz do niej dostepu.')
+                setErrorState(t('noteEditor.noMembership'))
             } else if (message.includes('nie istnieje') || message.includes('Nie znaleziono')) {
-                setErrorState('Notatka nie istnieje albo zostala usunieta.')
+                setErrorState(t('noteEditor.notExist'))
             } else {
-                setErrorState(`Wystapil blad podczas ladowania notatki: ${message}`)
+                setErrorState(t('noteEditor.loadError', { message }))
             }
         }
     },
@@ -91,7 +92,7 @@ const extractFirstH1 = (value: string) => {
 }
 
 const syncFirstH1WithTitle = (value: string, rawTitle: string) => {
-    const safeTitle = rawTitle.trim() || 'Nowa Notatka'
+    const safeTitle = rawTitle.trim() || t('noteEditor.newNote')
     const normalized = value || ''
 
     if (!normalized.trim()) {
@@ -110,11 +111,11 @@ const syncFirstH1WithTitle = (value: string, rawTitle: string) => {
 }
 
 const applyLoadedNote = (payload: LoadedNotePayload) => {
-    title.value = payload.title || 'Nowa Notatka'
+    title.value = payload.title || t('noteEditor.newNote')
     content.value = payload.content || ''
     canEdit.value = payload.canEdit
     sharedByLabel.value = payload.sharedByLabel
-    noteGroupLabel.value = payload.group ? `${payload.group.name} (${payload.group.type})` : 'Prywatna'
+    noteGroupLabel.value = payload.group ? `${payload.group.name} (${payload.group.type})` : t('noteEditor.private')
 
     const h1Title = extractFirstH1(content.value)
     if (h1Title) {
@@ -143,8 +144,8 @@ const applyLoadedNote = (payload: LoadedNotePayload) => {
 }
 
 const setErrorState = (message: string) => {
-    title.value = 'Brak dostepu do notatki'
-    content.value = 'Ta notatka nie jest dostepna dla Twojego konta.'
+    title.value = t('noteEditor.noAccessTitle')
+    content.value = t('noteEditor.noAccessContent')
     canEdit.value = false
     accessMessage.value = message
     noteGroupLabel.value = ''
@@ -203,7 +204,7 @@ watch(title, (newTitle) => {
 watch([content, title], () => {
     if (isLoading.value || !canEdit.value) return
 
-    const safeTitle = title.value.trim() || 'Nowa Notatka'
+    const safeTitle = title.value.trim() || t('noteEditor.newNote')
     const safeContent = content.value || ''
     hasUnsavedChanges.value = safeTitle !== lastSavedTitle.value || safeContent !== lastSavedContent.value
 })
@@ -218,7 +219,7 @@ const saveNote = async () => {
 
         isSaving.value = true
 
-        const safeTitle = title.value.trim() || 'Nowa Notatka'
+        const safeTitle = title.value.trim() || t('noteEditor.newNote')
         title.value = safeTitle
 
         const currentNote = getNote(noteId.value)
@@ -241,7 +242,7 @@ const saveNote = async () => {
         console.log('Zapisano notatke pomyslnie')
     } catch (error) {
         console.error('Wystapil blad podczas zapisywania:', error)
-        alert('Nie udalo sie zapisac notatki do Supabase.')
+        alert(t('noteEditor.saveFailed'))
     } finally {
         isSaving.value = false
     }
@@ -267,9 +268,9 @@ const saveNote = async () => {
             <template #right>
                 <div class="flex items-center gap-2">
                     <span class="hidden text-xs font-medium text-gray-500 dark:text-gray-400 lg:inline">{{ noteGroupLabel }}</span>
-                    <span class="hidden text-xs font-medium text-gray-500 dark:text-gray-400 lg:inline">Udostepnil: {{ sharedByLabel }}</span>
-                    <span v-if="!canEdit" class="hidden text-xs font-medium text-blue-600 dark:text-blue-400 sm:inline">Tryb tylko do odczytu</span>
-                    <span v-if="canEdit && hasUnsavedChanges" class="hidden text-xs font-medium text-amber-600 dark:text-amber-400 sm:inline">Niezapisane zmiany</span>
+                    <span class="hidden text-xs font-medium text-gray-500 dark:text-gray-400 lg:inline">{{ t('noteEditor.sharedBy', { name: sharedByLabel }) }}</span>
+                    <span v-if="!canEdit" class="hidden text-xs font-medium text-blue-600 dark:text-blue-400 sm:inline">{{ t('noteEditor.readOnly') }}</span>
+                    <span v-if="canEdit && hasUnsavedChanges" class="hidden text-xs font-medium text-amber-600 dark:text-amber-400 sm:inline">{{ t('noteEditor.unsaved') }}</span>
                 </div>
             </template>
         </UDashboardNavbar>
@@ -277,7 +278,7 @@ const saveNote = async () => {
         <UDashboardPanelContent class="relative flex h-full flex-col overflow-y-auto bg-white p-0 pb-24 dark:bg-gray-900">
             <div v-if="isLoading" class="flex flex-1 items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
                 <UIcon name="i-lucide-loader-2" class="h-5 w-5 animate-spin" />
-                <span>Ladowanie notatki...</span>
+                <span>{{ t('noteEditor.loadingNote') }}</span>
             </div>
 
             <div v-else-if="accessMessage" class="flex flex-1 items-center justify-center p-6">
@@ -286,11 +287,11 @@ const saveNote = async () => {
                     variant="soft"
                     icon="i-lucide-shield-alert"
                     :title="accessMessage"
-                    description="Mozesz wrocic do listy notatek i wybrac inna pozycje."
+                    :description="t('noteEditor.accessHint')"
                 />
             </div>
 
-            <ClientOnly v-else fallback-tag="div" fallback="Ladowanie edytora...">
+            <ClientOnly v-else fallback-tag="div" :fallback="t('noteEditor.loadingEditor')">
                 <NotesEditor v-if="content !== undefined" v-model="content" :readonly="!canEdit" />
             </ClientOnly>
 
@@ -302,7 +303,7 @@ const saveNote = async () => {
                     icon="i-lucide-x"
                     @click="exitNote"
                 >
-                    Wyjdz
+                    {{ t('noteEditor.exit') }}
                 </UButton>
                 <UButton
                     color="primary"
@@ -312,7 +313,7 @@ const saveNote = async () => {
                     :disabled="isSaving || !hasUnsavedChanges"
                     @click="saveNote"
                 >
-                    Zapisz
+                    {{ t('noteEditor.save') }}
                 </UButton>
             </div>
         </UDashboardPanelContent>

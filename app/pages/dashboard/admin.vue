@@ -5,6 +5,8 @@
 		layout: "dashboard",
 	})
 
+	const { t, locale } = useI18n()
+	const intlLocale = computed(() => (locale.value === "en" ? "en-US" : "pl-PL"))
 	const supabase = useSupabaseClient()
 	const user = useSupabaseUser()
 	const { fetchUserRoles, userRoles } = useUserRole()
@@ -170,7 +172,7 @@
 
 	// Delete file
 	const deleteFile = async (fileId: string) => {
-		if (!confirm("Delete this file?")) return
+		if (!confirm(t("admin.alerts.deleteFile"))) return
 		try {
 			// First get the file to delete from storage
 			const file = groupFiles.value.find(f => f.id === fileId)
@@ -186,7 +188,7 @@
 			if (error) throw error
 			loadFiles()
 		} catch (err) {
-			alert("Failed to delete file: " + (err as Error).message)
+			alert(t("admin.alerts.deleteFileFailed", { message: (err as Error).message }))
 		}
 	}
 
@@ -239,7 +241,7 @@
 					p_semester: createForm.value.semester,
 				})
 			} else {
-				throw new Error("Cannot create child groups for this type")
+				throw new Error(t("admin.alerts.cannotCreateChild"))
 			}
 
 			if (result.error) throw result.error
@@ -257,9 +259,9 @@
 			createForm.value = { name: "", semester: 1 }
 			loadChildGroups()
 			refreshAdminGroups()
-			alert("Created successfully!")
+			alert(t("admin.alerts.created"))
 		} catch (error) {
-			alert("Failed to create: " + (error as Error).message)
+			alert(t("admin.alerts.createFailed", { message: (error as Error).message }))
 		} finally {
 			creating.value = false
 		}
@@ -276,7 +278,7 @@
 			.eq("id", memberId)
 
 		if (error) {
-			alert("Failed to update role: " + error.message)
+			alert(t("admin.alerts.roleUpdateFailed", { message: error.message }))
 		} else {
 			loadMembers()
 		}
@@ -284,14 +286,14 @@
 
 	// Remove member
 	const removeMember = async (memberId: string) => {
-		if (!confirm("Remove this member?")) return
+		if (!confirm(t("admin.alerts.removeMember"))) return
 		const { error } = await supabase
 			.from("user_memberships")
 			.delete()
 			.eq("id", memberId)
 
 		if (error) {
-			alert("Failed to remove: " + error.message)
+			alert(t("admin.alerts.removeFailed", { message: error.message }))
 		} else {
 			loadMembers()
 		}
@@ -315,7 +317,7 @@
 				.maybeSingle()
 
 			if (existing) {
-				alert("User is already a member")
+				alert(t("admin.alerts.alreadyMember"))
 				addingMember.value = false
 				return
 			}
@@ -331,9 +333,9 @@
 			if (insertError) throw insertError
 			addMemberId.value = ""
 			loadMembers()
-			alert("Member added!")
+			alert(t("admin.alerts.memberAdded"))
 		} catch (error) {
-			alert("Failed to add member: " + (error as Error).message)
+			alert(t("admin.alerts.addMemberFailed", { message: (error as Error).message }))
 		} finally {
 			addingMember.value = false
 		}
@@ -359,14 +361,14 @@
 	}
 
 	const formatFileSize = (bytes: number | null) => {
-		if (!bytes) return "Unknown size"
+		if (!bytes) return t("admin.unknownSize")
 		if (bytes < 1024) return bytes + " B"
 		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
 		return (bytes / (1024 * 1024)).toFixed(1) + " MB"
 	}
 
 	const formatDate = (dateString: string) => {
-		return new Date(dateString).toLocaleDateString("en-US", {
+		return new Date(dateString).toLocaleDateString(intlLocale.value, {
 			month: "short",
 			day: "numeric",
 			year: "numeric",
@@ -382,7 +384,7 @@
 <template>
 	<UDashboardPanel>
 		<template #header>
-			<UDashboardNavbar title="Admin Dashboard">
+			<UDashboardNavbar :title="t('admin.title')">
 				<template #leading>
 					<UDashboardSidebarCollapse />
 				</template>
@@ -394,24 +396,24 @@
 				<!-- No Admin Access -->
 				<div v-if="!adminGroups?.length" class="flex flex-col items-center justify-center h-96">
 					<div class="text-6xl mb-4">🔒</div>
-					<h2 class="text-xl font-semibold mb-2">No Admin Access</h2>
-					<p class="text-gray-500">You don't have admin privileges in any group yet.</p>
+					<h2 class="text-xl font-semibold mb-2">{{ t('admin.noAccessTitle') }}</h2>
+					<p class="text-gray-500">{{ t('admin.noAccessDescription') }}</p>
 				</div>
 
 				<!-- Admin Dashboard -->
 				<div v-else class="max-w-5xl mx-auto space-y-6">
 					<!-- Header -->
 					<div>
-						<h1 class="text-2xl font-bold">Admin Dashboard</h1>
+						<h1 class="text-2xl font-bold">{{ t('admin.title') }}</h1>
 						<p class="text-sm text-gray-500">
-							{{ adminGroups.length }} group{{ adminGroups.length !== 1 ? "s" : "" }} you're admin of
+							{{ t('admin.adminOfGroups', { count: adminGroups.length }) }}
 						</p>
 					</div>
 
 					<!-- Group Selector -->
 					<UCard>
 						<template #header>
-							<h2 class="font-semibold">Select a Group to Manage</h2>
+							<h2 class="font-semibold">{{ t('admin.selectGroup') }}</h2>
 						</template>
 						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							<button
@@ -432,7 +434,7 @@
 								<div class="min-w-0 flex-1">
 									<div class="font-medium truncate">{{ group.name }}</div>
 									<UBadge :color="getGroupTypeColor(group.type)" size="xs" class="mt-1">
-										{{ group.type }}
+										{{ t(`groupType.${group.type}`) }}
 									</UBadge>
 								</div>
 							</button>
@@ -445,8 +447,8 @@
 							<template #header>
 								<div class="flex items-center justify-between">
 									<div>
-										<h2 class="font-semibold text-lg">Managing: {{ selectedGroup.name }}</h2>
-										<span class="text-xs text-gray-500 uppercase">{{ selectedGroup.type }}</span>
+										<h2 class="font-semibold text-lg">{{ t('admin.managing', { name: selectedGroup.name }) }}</h2>
+										<span class="text-xs text-gray-500 uppercase">{{ t(`groupType.${selectedGroup.type}`) }}</span>
 									</div>
 								</div>
 							</template>
@@ -460,7 +462,7 @@
 										? 'border-primary-500 text-primary-600'
 										: 'border-transparent text-gray-500 hover:text-gray-700'"
 								>
-									Members
+									{{ t('admin.tabs.members') }}
 								</button>
 								<button
 									@click="activeTab = 'subgroups'"
@@ -469,7 +471,7 @@
 										? 'border-primary-500 text-primary-600'
 										: 'border-transparent text-gray-500 hover:text-gray-700'"
 								>
-									Subgroups
+									{{ t('admin.tabs.subgroups') }}
 								</button>
 								<button
 									@click="activeTab = 'content'"
@@ -478,7 +480,7 @@
 										? 'border-primary-500 text-primary-600'
 										: 'border-transparent text-gray-500 hover:text-gray-700'"
 								>
-									Content
+									{{ t('admin.tabs.content') }}
 								</button>
 							</div>
 
@@ -486,27 +488,27 @@
 							<div v-if="activeTab === 'members'" class="space-y-4">
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold">Add Member</h3>
+										<h3 class="font-semibold">{{ t('admin.addMember') }}</h3>
 									</template>
 									<div class="flex gap-2">
 										<UInput
 											v-model="addMemberId"
-											placeholder="Enter user ID..."
+											:placeholder="t('admin.enterUserId')"
 											class="flex-1"
 											@keyup.enter="addMember"
 										/>
 										<UButton :loading="addingMember" @click="addMember" :disabled="!addMemberId.trim()">
-											Add
+											{{ t('admin.add') }}
 										</UButton>
 									</div>
 								</UCard>
 
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold">Members ({{ selectedGroupMembers.length }})</h3>
+										<h3 class="font-semibold">{{ t('admin.members', { count: selectedGroupMembers.length }) }}</h3>
 									</template>
 									<div v-if="membersLoading" class="text-center py-4 text-gray-500">
-										Loading...
+										{{ t('common.loading') }}
 									</div>
 									<div v-else-if="selectedGroupMembers.length" class="divide-y">
 										<div
@@ -521,18 +523,18 @@
 												/>
 												<div>
 													<div class="font-medium text-sm">
-														User {{ member.user_id.slice(0, 8) }}
+														{{ t('admin.user', { id: member.user_id.slice(0, 8) }) }}
 													</div>
-													<div class="text-xs text-gray-500">ID: {{ member.user_id }}</div>
+													<div class="text-xs text-gray-500">{{ t('admin.memberId', { id: member.user_id }) }}</div>
 												</div>
 											</div>
 											<div class="flex items-center gap-2">
 												<USelect
 													:modelValue="member.role"
 													:items="[
-														{ label: 'Student', value: 'student' },
-														{ label: 'Instructor', value: 'instructor' },
-														{ label: 'Admin', value: 'admin' },
+														{ label: t('role.student'), value: 'student' },
+														{ label: t('role.instructor'), value: 'instructor' },
+														{ label: t('role.admin'), value: 'admin' },
 													]"
 													size="sm"
 													@update:modelValue="(role) => changeMemberRole(member.id, role as Tables<'user_memberships'>['role'])"
@@ -543,13 +545,13 @@
 													size="sm"
 													@click="removeMember(member.id)"
 												>
-													Remove
+													{{ t('admin.remove') }}
 												</UButton>
 											</div>
 										</div>
 									</div>
 									<div v-else class="text-center py-8 text-gray-500">
-										No members yet
+										{{ t('admin.noMembers') }}
 									</div>
 								</UCard>
 							</div>
@@ -560,13 +562,13 @@
 									<template #header>
 										<div class="flex items-center justify-between">
 											<div>
-												<h3 class="font-semibold">Create {{ allowedChildType }}</h3>
+												<h3 class="font-semibold">{{ t('admin.createType', { type: t(`groupType.${allowedChildType}`) }) }}</h3>
 												<p class="text-xs text-gray-500 mt-1">
-													Add a new {{ allowedChildType }} under {{ selectedGroup.name }}
+													{{ t('admin.createTypeUnder', { type: t(`groupType.${allowedChildType}`), name: selectedGroup.name }) }}
 												</p>
 											</div>
 											<UButton size="sm" @click="showCreateModal = true">
-												Create
+												{{ t('admin.create') }}
 											</UButton>
 										</div>
 									</template>
@@ -574,10 +576,10 @@
 
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold">Subgroups ({{ childGroups.length }})</h3>
+										<h3 class="font-semibold">{{ t('admin.subgroups', { count: childGroups.length }) }}</h3>
 									</template>
 									<div v-if="subgroupsLoading" class="text-center py-4 text-gray-500">
-										Loading...
+										{{ t('common.loading') }}
 									</div>
 									<div v-else-if="childGroups.length" class="divide-y">
 										<div
@@ -590,12 +592,12 @@
 											</div>
 											<div>
 												<div class="font-medium text-sm">{{ child.name }}</div>
-												<UBadge :color="getGroupTypeColor(child.type)" size="xs">{{ child.type }}</UBadge>
+												<UBadge :color="getGroupTypeColor(child.type)" size="xs">{{ t(`groupType.${child.type}`) }}</UBadge>
 											</div>
 										</div>
 									</div>
 									<div v-else class="text-center py-8 text-gray-500">
-										No subgroups yet
+										{{ t('admin.noSubgroups') }}
 									</div>
 								</UCard>
 							</div>
@@ -611,7 +613,7 @@
 											? 'border-primary-500 text-primary-600'
 											: 'border-transparent text-gray-500 hover:text-gray-700'"
 									>
-										Notes ({{ notes.length }})
+										{{ t('admin.notes', { count: notes.length }) }}
 									</button>
 									<button
 										@click="contentTab = 'quizzes'"
@@ -620,7 +622,7 @@
 											? 'border-primary-500 text-primary-600'
 											: 'border-transparent text-gray-500 hover:text-gray-700'"
 									>
-										Quizzes ({{ quizzes.length }})
+										{{ t('admin.quizzes', { count: quizzes.length }) }}
 									</button>
 									<button
 										@click="contentTab = 'summaries'"
@@ -629,16 +631,16 @@
 											? 'border-primary-500 text-primary-600'
 											: 'border-transparent text-gray-500 hover:text-gray-700'"
 									>
-										Summaries ({{ summaries.length }})
+										{{ t('admin.summaries', { count: summaries.length }) }}
 									</button>
 								</div>
 
 								<UCard>
 									<template #header>
-										<h3 class="font-semibold capitalize">{{ contentTab }}</h3>
+										<h3 class="font-semibold capitalize">{{ t(`nav.${contentTab}`) }}</h3>
 									</template>
 									<div v-if="filesLoading" class="text-center py-4 text-gray-500">
-										Loading...
+										{{ t('common.loading') }}
 									</div>
 									<div v-else-if="contentTab === 'notes' && notes.length">
 										<div class="divide-y">
@@ -659,7 +661,7 @@
 													</div>
 												</div>
 												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
-													Delete
+													{{ t('admin.delete') }}
 												</UButton>
 											</div>
 										</div>
@@ -683,7 +685,7 @@
 													</div>
 												</div>
 												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
-													Delete
+													{{ t('admin.delete') }}
 												</UButton>
 											</div>
 										</div>
@@ -707,13 +709,13 @@
 													</div>
 												</div>
 												<UButton variant="ghost" color="error" size="sm" @click="deleteFile(file.id)">
-													Delete
+													{{ t('admin.delete') }}
 												</UButton>
 											</div>
 										</div>
 									</div>
 									<div v-else class="text-center py-8 text-gray-500">
-										No {{ contentTab }} in this group yet
+										{{ t('admin.noContent') }}
 									</div>
 								</UCard>
 							</div>
@@ -722,7 +724,7 @@
 
 					<!-- No Group Selected -->
 					<div v-else class="text-center py-12 text-gray-500">
-						Select a group above to manage it
+						{{ t('admin.selectGroupPrompt') }}
 					</div>
 				</div>
 			</div>
@@ -730,24 +732,24 @@
 	</UDashboardPanel>
 
 	<!-- Create Modal -->
-	<UModal v-model:open="showCreateModal" title="Create Subgroup">
+	<UModal v-model:open="showCreateModal" :title="t('admin.createSubgroupTitle')">
 		<template #body>
 			<div class="space-y-4">
 				<div>
-					<label class="block text-sm font-medium mb-1">Name</label>
-					<UInput v-model="createForm.name" placeholder="Enter name..." />
+					<label class="block text-sm font-medium mb-1">{{ t('admin.name') }}</label>
+					<UInput v-model="createForm.name" :placeholder="t('admin.enterName')" />
 				</div>
 				<div v-if="allowedChildType === 'class'">
-					<label class="block text-sm font-medium mb-1">Semester</label>
+					<label class="block text-sm font-medium mb-1">{{ t('admin.semester') }}</label>
 					<UInputNumber v-model="createForm.semester" :min="1" :max="20" />
 				</div>
 			</div>
 		</template>
 		<template #footer>
 			<div class="flex justify-end gap-2">
-				<UButton variant="outline" @click="showCreateModal = false">Cancel</UButton>
+				<UButton variant="outline" @click="showCreateModal = false">{{ t('common.cancel') }}</UButton>
 				<UButton :loading="creating" @click="createSubgroup" :disabled="!createForm.name.trim()">
-					Create {{ allowedChildType }}
+					{{ t('admin.createType', { type: t(`groupType.${allowedChildType}`) }) }}
 				</UButton>
 			</div>
 		</template>

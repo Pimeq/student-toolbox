@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useI18n()
 const user = useSupabaseUser()
 
 if (user.value) {
@@ -8,51 +9,51 @@ if (user.value) {
 
 <template>
 	<div>
-		<UPageHero title="Student Toolbox"
-			description="Aplikacja do notatek, plików, streszczeń, quizów i kalendarza w Twoich grupach. Zorganizuj swoje studia w jednym miejscu."
+		<UPageHero :title="t('brand')"
+			:description="t('landing.heroDescription')"
 			:links="[{
-				label: 'Zaloguj się',
+				label: t('landing.loginCta'),
 				to: '/login',
 				trailingIcon: 'i-lucide-arrow-right',
 				size: 'xl'
 			}, {
-				label: 'Zarejestruj się',
+				label: t('landing.registerCta'),
 				to: '/register',
 				size: 'xl',
 				color: 'neutral',
 				variant: 'subtle'
 			}]" />
 
-		<UPageSection id="features" title="Wszystko czego potrzebujesz na studia"
-			description="Rozpocznij naukę z solidnymi fundamentami. Aplikacja zawiera wszystkie niezbędne narzędzia do budowania bazy wiedzy ze swoją grupą."
+		<UPageSection id="features" :title="t('landing.featuresTitle')"
+			:description="t('landing.featuresDescription')"
 			:features="[{
 				icon: 'i-lucide-file-text',
-				title: 'Notatki i Pliki',
-				description: 'Współdziel notatki, prezentacje i materiały z zajęć z całą swoją grupą.'
+				title: t('landing.feature1Title'),
+				description: t('landing.feature1Description')
 			}, {
 				icon: 'i-lucide-brain-circuit',
-				title: 'Streszczenia i Quizy',
-				description: 'Zarządzaj wiedzą poprzez automatyczne streszczenia i testuj się za pomocą interaktywnych quizów.'
+				title: t('landing.feature2Title'),
+				description: t('landing.feature2Description')
 			}, {
 				icon: 'i-lucide-calendar',
-				title: 'Kalendarz',
-				description: 'Śledź ważne terminy, kolokwia, egzaminy i spotkania grupowe w zintegrowanym kalendarzu.'
+				title: t('landing.feature3Title'),
+				description: t('landing.feature3Description')
 			}, {
 				icon: 'i-lucide-users',
-				title: 'Grupy Studenckie',
-				description: 'Organizuj się w grupy, wymieniaj materiałami i bądź na bieżąco z życiem Twojego kierunku.'
+				title: t('landing.feature4Title'),
+				description: t('landing.feature4Description')
 			}]" />
 
 		<UPageSection>
-			<UPageCTA title="Gotowy na lepsze oceny?"
-				description="Dołącz do innych studentów i zorganizuj swoją naukę z nami. Rozpocznij darmowe korzystanie już dziś."
+			<UPageCTA :title="t('landing.ctaTitle')"
+				:description="t('landing.ctaDescription')"
 				variant="subtle" :links="[{
-					label: 'Rozpocznij',
+					label: t('landing.ctaStart'),
 					to: '/register',
 					trailingIcon: 'i-lucide-arrow-right',
 					color: 'neutral'
 				}, {
-					label: 'Zaloguj się',
+					label: t('landing.ctaLogin'),
 					to: '/login',
 					color: 'neutral',
 					variant: 'outline'

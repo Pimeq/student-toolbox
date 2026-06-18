@@ -5,6 +5,7 @@
 
 	const model = defineModel<string[]>("items")
 
+	const { t } = useI18n()
 	const client = useSupabaseClient()
 	const { data: uniList, pending } = useAsyncData("universities", async () => {
 		const { data, error } = await client.rpc("get_universities")
@@ -75,19 +76,19 @@
 						),
 					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
 						table.toggleAllPageRowsSelected(!!value),
-					"aria-label": "Select all",
+					"aria-label": t("onboarding.selectAll"),
 				}),
 			cell: ({ row }) =>
 				h(UCheckbox, {
 					modelValue: row.getIsSelected(),
 					"onUpdate:modelValue": (value: boolean | "indeterminate") =>
 						row.toggleSelected(!!value),
-					"aria-label": "Select row",
+					"aria-label": t("onboarding.selectRow"),
 				}),
 		},
 		{
 			accessorKey: "name",
-			header: "Name",
+			header: t("onboarding.columnName"),
 		},
 	]
 </script>

@@ -7,6 +7,8 @@ definePageMeta({
 	layout: 'dashboard',
 })
 
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
 const { files, fetchFiles, uploadFile, deleteFile, downloadFile, setFileVisibility, getUserGroups } = useFiles()
 
 const isLoading = ref(true)
@@ -33,8 +35,8 @@ onMounted(async () => {
 const personalFiles = computed(() => files.value.filter(f => f.visibility === 'personal'))
 const sharedFiles = computed(() => files.value.filter(f => f.visibility === 'shared'))
 const sections = computed(() => [
-	{ key: 'personal', label: 'Personal', files: personalFiles.value },
-	{ key: 'shared', label: 'Shared', files: sharedFiles.value },
+	{ key: 'personal', label: t('files.sectionPersonal'), files: personalFiles.value },
+	{ key: 'shared', label: t('files.sectionShared'), files: sharedFiles.value },
 ])
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -64,7 +66,7 @@ const uploadFiles = async (fileList: File[]) => {
 
 	isUploading.value = false
 	if (failed > 0) {
-		uploadError.value = `Nie udało się przesłać ${failed} pliku/plików.`
+		uploadError.value = t('files.alerts.uploadFailed', { count: failed })
 	}
 }
 
@@ -85,18 +87,18 @@ const handleDownload = async (file: StoredFile) => {
 		isDownloading.value = file.id
 		await downloadFile(file.id)
 	} catch (err: any) {
-		alert(err?.message || 'Nie udało się pobrać pliku.')
+		alert(err?.message || t('files.alerts.downloadFailed'))
 	} finally {
 		isDownloading.value = null
 	}
 }
 
 const handleDelete = async (file: StoredFile) => {
-	if (!confirm(`Czy na pewno chcesz usunąć "${file.name}"?`)) return
+	if (!confirm(t('files.alerts.deleteConfirm', { name: file.name }))) return
 	try {
 		await deleteFile(file.id)
 	} catch (err: any) {
-		alert(err?.message || 'Nie udało się usunąć pliku.')
+		alert(err?.message || t('files.alerts.deleteFailed'))
 	}
 }
 
@@ -109,7 +111,7 @@ const openGroupModal = async (fileId: string) => {
 		userGroups.value = groups
 		selectedGroupId.value = groups[0]?.id || ''
 	} catch (err) {
-		console.error('Błąd pobierania grup', err)
+		console.error(t('files.alerts.fetchGroupsError'), err)
 	} finally {
 		isFetchingGroups.value = false
 	}
@@ -121,7 +123,7 @@ const confirmGroupSelection = async () => {
 		await setFileVisibility(targetFileId.value, 'shared', selectedGroupId.value)
 		isGroupModalOpen.value = false
 	} catch (err: any) {
-		alert(err?.message || 'Nie udało się udostępnić pliku.')
+		alert(err?.message || t('files.alerts.shareFailed'))
 	}
 }
 
@@ -134,7 +136,7 @@ const handleToggleVisibility = async (file: StoredFile) => {
 			await setFileVisibility(file.id, 'personal')
 		}
 	} catch (err: any) {
-		alert(err?.message || 'Nie udało się zmienić widoczności.')
+		alert(err?.message || t('files.alerts.visibilityFailed'))
 	}
 }
 
@@ -151,12 +153,12 @@ const formatDate = (dateString: string) => {
 	const now = new Date()
 	const diff = now.getTime() - date.getTime()
 	if (diff < 86400000 && date.getDate() === now.getDate()) {
-		return `Dzisiaj o ${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`
+		return t('files.today', { time: date.toLocaleTimeString(intlLocale.value, { hour: '2-digit', minute: '2-digit' }) })
 	}
 	if (diff < 172800000) {
-		return `Wczoraj o ${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`
+		return t('files.yesterday', { time: date.toLocaleTimeString(intlLocale.value, { hour: '2-digit', minute: '2-digit' }) })
 	}
-	return date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
+	return date.toLocaleDateString(intlLocale.value, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 const getFileIcon = (mimeType: string | null) => {
@@ -193,7 +195,7 @@ const getFileIconColor = (mimeType: string | null) => {
 		<header
 			class="h-16 shrink-0 border-b border-gray-200 dark:border-gray-800 px-4 flex items-center gap-4 bg-white dark:bg-gray-900">
 			<UButton color="neutral" variant="ghost" icon="i-heroicons-bars-3" class="lg:hidden" />
-			<h1 class="text-xl font-bold font-sans">Pliki</h1>
+			<h1 class="text-xl font-bold font-sans">{{ t('files.title') }}</h1>
 		</header>
 
 		<div
@@ -207,7 +209,7 @@ const getFileIconColor = (mimeType: string | null) => {
 				class="mb-5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-900/90 backdrop-blur p-3">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<p class="text-sm text-gray-500 dark:text-gray-400">
-						{{ files.length }} {{ files.length === 1 ? 'plik' : 'pliki/plików' }}
+						{{ files.length === 1 ? t('files.countOne', { count: files.length }) : t('files.countMany', { count: files.length }) }}
 					</p>
 					<div class="flex items-center gap-2">
 						<input
@@ -225,7 +227,7 @@ const getFileIconColor = (mimeType: string | null) => {
 							variant="solid"
 							@click="triggerUpload"
 						>
-							Prześlij plik
+							{{ t('files.upload') }}
 						</UButton>
 					</div>
 				</div>
@@ -239,14 +241,14 @@ const getFileIconColor = (mimeType: string | null) => {
 			>
 				<div class="flex flex-col items-center gap-3 text-primary-600 dark:text-primary-400">
 					<UIcon name="i-lucide-upload-cloud" class="w-16 h-16" />
-					<p class="text-lg font-semibold">Upuść pliki tutaj</p>
+					<p class="text-lg font-semibold">{{ t('files.dropHere') }}</p>
 				</div>
 			</div>
 
 			<!-- Loading -->
 			<div v-if="isLoading" class="flex flex-col items-center justify-center h-64 gap-3 text-gray-500 dark:text-gray-400">
 				<UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin" />
-				<p class="text-sm">Ładowanie plików...</p>
+				<p class="text-sm">{{ t('files.loading') }}</p>
 			</div>
 
 			<!-- Empty state -->
@@ -256,11 +258,11 @@ const getFileIconColor = (mimeType: string | null) => {
 			>
 				<UIcon name="i-lucide-folder-open" class="w-16 h-16 text-gray-300 dark:text-gray-600" />
 				<div>
-					<h3 class="text-lg font-medium text-gray-900 dark:text-white">Brak plików</h3>
-					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Prześlij swój pierwszy plik lub przeciągnij go tutaj.</p>
+					<h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ t('files.empty') }}</h3>
+					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('files.emptyHint') }}</p>
 				</div>
 				<UButton :loading="isUploading" icon="i-lucide-upload" color="neutral" variant="solid" @click="triggerUpload">
-					Prześlij plik
+					{{ t('files.upload') }}
 				</UButton>
 			</div>
 
@@ -281,7 +283,7 @@ const getFileIconColor = (mimeType: string | null) => {
 						v-if="section.files.length === 0"
 						class="text-sm text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-900/30 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-4"
 					>
-						Brak plików w sekcji {{ section.label }}.
+						{{ t('files.sectionEmpty', { section: section.label }) }}
 					</div>
 
 					<div v-else class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
@@ -326,7 +328,7 @@ const getFileIconColor = (mimeType: string | null) => {
 										? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
 										: 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
 								]"
-								:title="file.visibility === 'shared' ? 'Udostępniony — kliknij aby ustawić prywatny' : 'Prywatny — kliknij aby udostępnić'"
+								:title="file.visibility === 'shared' ? t('files.sharedTooltip') : t('files.privateTooltip')"
 								@click="handleToggleVisibility(file)"
 							>
 								{{ file.visibility === 'shared' ? 'Sh' : 'Ps' }}
@@ -349,7 +351,7 @@ const getFileIconColor = (mimeType: string | null) => {
 									color="neutral"
 									variant="ghost"
 									size="xs"
-									title="Pobierz"
+									:title="t('files.download')"
 									@click="handleDownload(file)"
 								/>
 								<UButton
@@ -358,7 +360,7 @@ const getFileIconColor = (mimeType: string | null) => {
 									color="error"
 									variant="ghost"
 									size="xs"
-									title="Usuń"
+									:title="t('files.delete')"
 									@click="handleDelete(file)"
 								/>
 							</div>
@@ -374,17 +376,17 @@ const getFileIconColor = (mimeType: string | null) => {
 				<UCard>
 					<template #header>
 						<h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
-							Udostępnij plik
+							{{ t('files.shareTitle') }}
 						</h3>
 					</template>
 
 					<div class="p-4 space-y-4">
-						<p class="text-sm text-gray-500 dark:text-gray-400">Zaznacz grupę z poniższej listy:</p>
+						<p class="text-sm text-gray-500 dark:text-gray-400">{{ t('files.selectGroup') }}</p>
 						<div v-if="isFetchingGroups" class="flex justify-center py-4">
 							<UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin text-gray-500" />
 						</div>
 						<div v-else-if="userGroups.length === 0" class="text-sm text-red-500 py-2">
-							Nie masz dodanych żadnych grup uczelnianych!
+							{{ t('files.noGroups') }}
 						</div>
 						<div v-else class="space-y-3 pl-1">
 							<URadioGroup
@@ -397,13 +399,13 @@ const getFileIconColor = (mimeType: string | null) => {
 
 					<template #footer>
 						<div class="flex justify-end gap-2">
-							<UButton color="neutral" variant="ghost" @click="isGroupModalOpen = false">Anuluj</UButton>
+							<UButton color="neutral" variant="ghost" @click="isGroupModalOpen = false">{{ t('common.cancel') }}</UButton>
 							<UButton
 								color="neutral"
 								:disabled="!selectedGroupId || isFetchingGroups"
 								@click="confirmGroupSelection"
 							>
-								Zatwierdź
+								{{ t('common.confirm') }}
 							</UButton>
 						</div>
 					</template>

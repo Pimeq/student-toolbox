@@ -9,6 +9,8 @@ definePageMeta({
     layout: 'dashboard'
 })
 
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
 const route = useRoute()
 const router = useRouter()
 const supabase = useSupabaseClient()
@@ -18,7 +20,7 @@ const noteId = route.params.id as string
 const questionCount = ref<number>(5)
 
 const currentNote = computed(() => notes.value.find(n => n.id === noteId))
-const noteTitle = computed(() => currentNote.value?.title || 'Nieznana notatka')
+const noteTitle = computed(() => currentNote.value?.title || t('quiz.unknownNote'))
 
 const { 
     quiz, userAnswers, isQuizSubmitted, quizLoading, errorMsg, score, generateQuiz, loadQuiz 
@@ -27,13 +29,13 @@ const {
 const { data: fileText, pending: notePending, error: noteError } = await useAsyncData(
     `note-content-${noteId}`, 
     async () => {
-        if (!noteId) throw new Error("Nie wybrano notatki.")
+        if (!noteId) throw new Error(t("quiz.errors.noteNotSelected"))
         let content = await getNoteContent(noteId)
         if (!content) {
             await fetchNotes()
             content = await getNoteContent(noteId)
         }
-        if (!content) throw new Error("Nie udało się załadować treści notatki.")
+        if (!content) throw new Error(t("quiz.errors.loadContentFailed"))
         return content
     }
 )
@@ -62,7 +64,7 @@ const handleGenerate = async () => {
             console.error("Wystąpił błąd:", e)
         }
     } else {
-        errorMsg.value = "Nie można załadować treści notatki."
+        errorMsg.value = t("quiz.errors.loadContentNull")
     }
 }
 
@@ -87,34 +89,34 @@ const getDisplayName = (dbName: string) => {
                     <div class="flex items-center justify-between">
                         <h2 class="text-2xl font-bold flex items-center gap-2">
                             <UIcon name="i-heroicons-sparkles" class="text-primary" />
-                            AI Quiz Generator
+                            {{ t('quiz.generatorTitle') }}
                         </h2>
                         <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-left"
-                            @click="router.push('/dashboard/quiz')">Wróć</UButton>
+                            @click="router.push('/dashboard/quiz')">{{ t('quiz.back') }}</UButton>
                     </div>
                 </template>
 
                 <div class="flex flex-col items-center justify-center my-10 space-y-6">
                     <div v-if="notePending || quizLoading" class="text-gray-500 flex items-center gap-2">
                         <UIcon name="i-heroicons-arrow-path" class="animate-spin w-5 h-5" />
-                        Przetwarzanie...
+                        {{ t('quiz.processing') }}
                     </div>
                     
                     <UAlert v-else-if="noteError" color="error" icon="i-heroicons-exclamation-triangle" :title="noteError.message" />
 
                     <template v-else-if="fileText">
                         <div class="text-center space-y-2">
-                            <h3 class="text-xl font-medium">Wygeneruj nowy quiz</h3>
-                            <p class="text-gray-500 max-w-md mx-auto">Sztuczna inteligencja przeanalizuje Twoją notatkę i przygotuje zestaw pytań.</p>
+                            <h3 class="text-xl font-medium">{{ t('quiz.generateNew') }}</h3>
+                            <p class="text-gray-500 max-w-md mx-auto">{{ t('quiz.generateHint') }}</p>
                         </div>
 
                         <div class="flex flex-col sm:flex-row gap-4 items-center justify-center w-full max-w-sm mt-4">
-                            <UFormField label="Liczba pytań" class="w-full flex-1">
+                            <UFormField :label="t('quiz.questionCount')" class="w-full flex-1">
                                 <UInput v-model="questionCount" type="number" min="1" max="20" icon="i-heroicons-list-bullet" />
                             </UFormField>
 
                             <UButton @click="handleGenerate" :loading="quizLoading" :disabled="!fileText" icon="i-heroicons-cpu-chip" size="lg" class="mt-6 w-full sm:w-auto">
-                                Generuj
+                                {{ t('quiz.generate') }}
                             </UButton>
                         </div>
                     </template>
@@ -127,12 +129,12 @@ const getDisplayName = (dbName: string) => {
                 <template #header>
                     <div class="flex items-center gap-2">
                         <UIcon name="i-heroicons-clock" class="text-primary w-6 h-6" />
-                        <h3 class="text-xl font-bold">Zapisane quizy dla tej notatki</h3>
+                        <h3 class="text-xl font-bold">{{ t('quiz.savedTitle') }}</h3>
                     </div>
                 </template>
 
                 <div v-if="quizzesLoading" class="p-4 text-center text-gray-500">
-                    Ładowanie listy quizów...
+                    {{ t('quiz.loadingSaved') }}
                 </div>
 
                 <div v-else class="grid gap-3">
@@ -144,11 +146,11 @@ const getDisplayName = (dbName: string) => {
                             </div>
                             <div class="flex flex-col">
                                 <span class="font-semibold">{{ getDisplayName(saved.name) }}</span>
-                                <span class="text-xs text-gray-500">{{ new Date(saved.created_at).toLocaleDateString() }}</span>
+                                <span class="text-xs text-gray-500">{{ new Date(saved.created_at).toLocaleDateString(intlLocale) }}</span>
                             </div>
                         </div>
                         <UButton color="primary" variant="subtle" icon="i-heroicons-play" @click="loadExistingQuiz(saved)">
-                            Rozwiąż
+                            {{ t('quiz.solve') }}
                         </UButton>
                     </div>
                 </div>
@@ -158,9 +160,9 @@ const getDisplayName = (dbName: string) => {
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <UIcon name="i-heroicons-academic-cap" class="w-8 h-8 text-primary" />
-                        <h3 class="text-3xl font-bold">Twój Quiz</h3>
+                        <h3 class="text-3xl font-bold">{{ t('quiz.yourQuiz') }}</h3>
                     </div>
-                    <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">Zamknij i wróć
+                    <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="quiz = []">{{ t('quiz.closeReturn') }}
                     </UButton>
                 </div>
 
@@ -210,14 +212,14 @@ const getDisplayName = (dbName: string) => {
                     <div v-if="!isQuizSubmitted">
                         <UButton color="primary" size="xl" icon="i-heroicons-paper-airplane"
                             @click="isQuizSubmitted = true">
-                            Sprawdź odpowiedzi
+                            {{ t('quiz.checkAnswers') }}
                         </UButton>
                         <p class="text-sm text-gray-500 mt-2">
-                            Wypełniono {{ Object.keys(userAnswers).length }} z {{ quiz.length }} pytań
+                            {{ t('quiz.filledOut', { answered: Object.keys(userAnswers).length, total: quiz.length }) }}
                         </p>
                     </div>
                     <div v-else class="space-y-4">
-                        <h4 class="text-2xl font-bold">Twój wynik</h4>
+                        <h4 class="text-2xl font-bold">{{ t('quiz.yourScore') }}</h4>
                         <div class="text-5xl font-black mb-2"
                             :class="score === quiz.length ? 'text-green-500' : (score > quiz.length / 2 ? 'text-primary' : 'text-red-500')">
                             {{ score }} / {{ quiz.length }}
@@ -225,11 +227,11 @@ const getDisplayName = (dbName: string) => {
                         <div class="flex items-center justify-center gap-4 mt-6">
                             <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path"
                                 @click="() => { isQuizSubmitted = false; userAnswers = {} }">
-                                Spróbuj ponownie
+                                {{ t('quiz.tryAgain') }}
                             </UButton>
                             <UButton color="primary" variant="soft" icon="i-lucide-arrow-left"
                                 @click="router.push('/dashboard/quiz')">
-                                Wróć do listy quizów
+                                {{ t('quiz.backToList') }}
                             </UButton>
                         </div>
                     </div>

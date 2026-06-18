@@ -9,6 +9,7 @@ import { ImageUpload } from './EditorImageUploadExtension'
 import EditorLinkPopover from './EditorLinkPopover.vue'
 import Link from '@tiptap/extension-link'
 
+const { t } = useI18n()
 const value = defineModel<string>()
 const props = withDefaults(defineProps<{ readonly?: boolean }>(), {
   readonly: false
@@ -334,7 +335,7 @@ const emojiItems: EditorEmojiMenuItem[] = gitHubEmojis.filter((emoji: any) => !e
         }
       }),
       Link.configure({ openOnClick: false })
-    ]" :handlers="customHandlers" placeholder="Pisz śmiało, naciśnij '/' aby wywołać command menu..."
+    ]" :handlers="customHandlers" :placeholder="t('noteEditor.placeholder')"
     :editable="!props.readonly"
     :ui="{ base: 'p-8 sm:px-16 py-13.5' }" class="w-full relative h-full flex flex-col">
     <UEditorToolbar v-if="!props.readonly" :editor="editor" :items="fixedToolbarItems"

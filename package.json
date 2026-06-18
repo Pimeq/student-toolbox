@@ -21,6 +21,7 @@
     "@nuxt/eslint": "^1.15.2",
     "@nuxt/image": "^2.0.0",
     "@nuxt/ui": "^4.6.0",
+    "@nuxtjs/i18n": "^10.4.0",
     "@nuxtjs/supabase": "2.0.4",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-emoji": "^3.22.3",

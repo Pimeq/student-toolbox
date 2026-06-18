@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { StepperItem } from "@nuxt/ui"
 
+const { t } = useI18n()
 const client = useSupabaseClient()
 const user = useSupabaseUser()
 const toast = useToast()
@@ -9,21 +10,25 @@ const props = defineProps<{
 }>()
 const open = ref(props.show)
 
-const items = ref<StepperItem[]>([
+const items = computed<StepperItem[]>(() => [
 	{
-		title: "Universities",
+		value: "Universities",
+		title: t("onboarding.steps.universities"),
 		icon: "i-heroicons-building-office-2-solid",
 	},
 	{
-		title: "Faculties",
+		value: "Faculties",
+		title: t("onboarding.steps.faculties"),
 		icon: "i-heroicons-academic-cap-solid",
 	},
 	{
-		title: "Courses",
+		value: "Courses",
+		title: t("onboarding.steps.courses"),
 		icon: "i-heroicons-book-open-solid",
 	},
 	{
-		title: "Classes",
+		value: "Classes",
+		title: t("onboarding.steps.classes"),
 		icon: "i-heroicons-users-solid",
 	},
 ])
@@ -44,13 +49,13 @@ const enrollItems = ref<enrollItemsType>({
 	classes: [],
 })
 
-function canGoNext(stepTitle: string | undefined) {
-	if (!stepTitle) return false
-	if (stepTitle === "Universities")
+function canGoNext(stepValue: string | undefined) {
+	if (!stepValue) return false
+	if (stepValue === "Universities")
 		return enrollItems.value.universities.length > 0
-	if (stepTitle === "Faculties") return enrollItems.value.faculties.length > 0
-	if (stepTitle === "Courses") return enrollItems.value.courses.length > 0
-	if (stepTitle === "Classes") return enrollItems.value.classes.length > 0
+	if (stepValue === "Faculties") return enrollItems.value.faculties.length > 0
+	if (stepValue === "Courses") return enrollItems.value.courses.length > 0
+	if (stepValue === "Classes") return enrollItems.value.classes.length > 0
 	return false
 }
 
@@ -89,16 +94,16 @@ const handleUserEnroll = async () => {
 	const { error } = await client.from("user_memberships").insert(inserts)
 	if (error) {
 		toast.add({
-			title: "Error",
-			description: "Failed to enroll user in selected groups.",
+			title: t("common.error"),
+			description: t("onboarding.enrollFailed"),
 			color: "error",
 		})
 		return
 	}
 
 	toast.add({
-		title: "Success",
-		description: "You have been enrolled in the selected groups.",
+		title: t("common.success"),
+		description: t("onboarding.enrollSuccess"),
 		color: "success",
 	})
 
@@ -111,30 +116,30 @@ const handleUserEnroll = async () => {
 		<template #content>
 			<UCard>
 				<template #header>
-					<h2 class="text-2xl font-bold">Welcome to the dashboard!</h2>
+					<h2 class="text-2xl font-bold">{{ t('onboarding.welcome') }}</h2>
 				</template>
 				<div class="w-full">
 					<UStepper disabled ref="stepper" :items="items">
 						<template #content="{ item }">
-							<StepperUniversity v-if="item.title == 'Universities'"
+							<StepperUniversity v-if="item.value == 'Universities'"
 								v-model:items="enrollItems.universities" />
-							<StepperFaculties v-if="item.title == 'Faculties'" v-model:items="enrollItems" />
-							<StepperCourses v-if="item.title == 'Courses'" v-model:items="enrollItems" />
-							<StepperClasses v-if="item.title == 'Classes'" v-model:items="enrollItems" />
+							<StepperFaculties v-if="item.value == 'Faculties'" v-model:items="enrollItems" />
+							<StepperCourses v-if="item.value == 'Courses'" v-model:items="enrollItems" />
+							<StepperClasses v-if="item.value == 'Classes'" v-model:items="enrollItems" />
 
 							<div class="flex gap-2 justify-between mt-4">
 								<UButton leading-icon="i-lucide-arrow-left" :disabled="!stepper?.hasPrev"
 									@click="stepper?.prev()">
-									Prev
+									{{ t('onboarding.prev') }}
 								</UButton>
 
-								<UButton v-if="item.title != 'Classes'" trailing-icon="i-lucide-arrow-right"
-									:disabled="!stepper?.hasNext || !canGoNext(item.title)" @click="stepper?.next()">
-									Next
+								<UButton v-if="item.value != 'Classes'" trailing-icon="i-lucide-arrow-right"
+									:disabled="!stepper?.hasNext || !canGoNext(item.value)" @click="stepper?.next()">
+									{{ t('onboarding.next') }}
 								</UButton>
-								<UButton v-else trailing-icon="i-lucide-arrow-right" :disabled="!canGoNext(item.title)"
+								<UButton v-else trailing-icon="i-lucide-arrow-right" :disabled="!canGoNext(item.value)"
 									@click="handleUserEnroll">
-									Submit
+									{{ t('onboarding.submit') }}
 								</UButton>
 							</div>
 						</template>
