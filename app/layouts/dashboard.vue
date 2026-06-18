@@ -28,6 +28,11 @@ const items: NavigationMenuItem[] = [
 		to: "/dashboard/calendar",
 	},
 	{
+		label: "Files",
+		icon: "i-lucide-folder",
+		to: "/dashboard/files",
+	},
+	{
 		label: "Notes",
 		icon: "i-lucide-notebook",
 		to: "/dashboard/notes",
