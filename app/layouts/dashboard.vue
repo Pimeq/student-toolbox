@@ -3,6 +3,7 @@ import type { NavigationMenuItem } from "@nuxt/ui"
 
 const supabase = useSupabaseClient()
 const router = useRouter()
+const { t } = useI18n()
 
 const loading = ref(false)
 const logOut = async () => {
@@ -16,46 +17,46 @@ const handleToggle = () => {
 	collapsed.value = !collapsed.value
 }
 
-const items: NavigationMenuItem[] = [
+const items = computed<NavigationMenuItem[]>(() => [
 	{
-		label: "Dashboard",
+		label: t("nav.dashboard"),
 		icon: "i-lucide-house",
 		to: "/dashboard",
 	},
 	{
-		label: "Calendar",
+		label: t("nav.calendar"),
 		icon: "i-lucide-calendar",
 		to: "/dashboard/calendar",
 	},
 	{
-		label: "Files",
+		label: t("nav.files"),
 		icon: "i-lucide-folder",
 		to: "/dashboard/files",
 	},
 	{
-		label: "Notes",
+		label: t("nav.notes"),
 		icon: "i-lucide-notebook",
 		to: "/dashboard/notes",
 	},
 	{
-		label: "Quizzes",
+		label: t("nav.quizzes"),
 		icon: "i-lucide-lightbulb",
 		to: "/dashboard/quiz",
 	},
 	{
-		label: "Summaries",
+		label: t("nav.summaries"),
 		icon: "i-lucide-text",
 		to: "/dashboard/summary",
 	},
-]
+])
 
-const footerItems: NavigationMenuItem[] = [
+const footerItems = computed<NavigationMenuItem[]>(() => [
 	{
-		label: "Settings",
+		label: t("nav.settings"),
 		icon: "i-lucide-settings",
 		to: "/dashboard/settings",
 	},
-]
+])
 
 const { isAdmin, fetchUserRoles, userRoles } = useUserRole()
 
@@ -70,7 +71,7 @@ const adminItems = computed<NavigationMenuItem[]>(() => {
 	if (!anyAdmin) return []
 	return [
 		{
-			label: "Admin",
+			label: t("nav.admin"),
 			icon: "i-lucide-shield",
 			to: "/dashboard/admin",
 		},
@@ -78,7 +79,7 @@ const adminItems = computed<NavigationMenuItem[]>(() => {
 })
 
 // Combine items with conditional admin section
-const navItems = computed(() => [...items, ...adminItems.value])
+const navItems = computed(() => [...items.value, ...adminItems.value])
 
 defineExpose({
 	handleToggle,
@@ -122,8 +123,10 @@ defineExpose({
 			</template>
 
 			<template #footer="{ collapsed }">
-				<UNavigationMenu :collapsed="collapsed" :items="footerItems" orientation="vertical">
-				</UNavigationMenu>
+				<div class="flex flex-col gap-1">
+					<UNavigationMenu :collapsed="collapsed" :items="footerItems" orientation="vertical" />
+					<LanguageSwitcher v-if="!collapsed" />
+				</div>
 			</template>
 		</UDashboardSidebar>
 		<slot />

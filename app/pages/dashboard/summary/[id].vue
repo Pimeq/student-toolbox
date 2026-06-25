@@ -9,6 +9,8 @@ definePageMeta({
     layout: 'dashboard'
 })
 
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
 const route = useRoute()
 const router = useRouter()
 const supabase = useSupabaseClient()
@@ -17,14 +19,14 @@ const { getNoteContent, fetchNotes, notes } = useNotes()
 const noteId = route.params.id as string
 
 const detailLevel = ref<SummaryDetail>('medium')
-const detailOptions = [
-    { label: 'Zwięzłe', value: 'short' },
-    { label: 'Standardowe', value: 'medium' },
-    { label: 'Szczegółowe', value: 'detailed' }
-]
+const detailOptions = computed(() => [
+    { label: t('summary.detailShort'), value: 'short' },
+    { label: t('summary.detailMedium'), value: 'medium' },
+    { label: t('summary.detailDetailed'), value: 'detailed' }
+])
 
 const currentNote = computed(() => notes.value.find(n => n.id === noteId))
-const noteTitle = computed(() => currentNote.value?.title || 'Nieznana notatka')
+const noteTitle = computed(() => currentNote.value?.title || t('summary.unknownNote'))
 
 const {
     summary, summaryLoading, errorMsg, generateSummary, loadSummary
@@ -33,13 +35,13 @@ const {
 const { data: fileText, pending: notePending, error: noteError } = await useAsyncData(
     `note-content-${noteId}`,
     async () => {
-        if (!noteId) throw new Error("Nie wybrano notatki.")
+        if (!noteId) throw new Error(t("summary.errors.noteNotSelected"))
         let content = await getNoteContent(noteId)
         if (!content) {
             await fetchNotes()
             content = await getNoteContent(noteId)
         }
-        if (!content) throw new Error("Nie udało się załadować treści notatki.")
+        if (!content) throw new Error(t("summary.errors.loadContentFailed"))
         return content
     }
 )
@@ -68,7 +70,7 @@ const handleGenerate = async () => {
             console.error("Wystąpił błąd:", e)
         }
     } else {
-        errorMsg.value = "Nie można załadować treści notatki."
+        errorMsg.value = t("summary.errors.loadContentNull")
     }
 }
 
@@ -92,17 +94,17 @@ const getDisplayName = (dbName: string) => {
                     <div class="flex items-center justify-between">
                         <h2 class="text-2xl font-bold flex items-center gap-2">
                             <UIcon name="i-heroicons-sparkles" class="text-primary" />
-                            AI Generator Streszczeń
+                            {{ t('summary.generatorTitle') }}
                         </h2>
                         <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-left"
-                            @click="router.push('/dashboard/summary')">Wróć</UButton>
+                            @click="router.push('/dashboard/summary')">{{ t('summary.back') }}</UButton>
                     </div>
                 </template>
 
                 <div class="flex flex-col items-center justify-center my-10 space-y-6">
                     <div v-if="notePending || summaryLoading" class="text-gray-500 flex items-center gap-2">
                         <UIcon name="i-heroicons-arrow-path" class="animate-spin w-5 h-5" />
-                        Przetwarzanie...
+                        {{ t('summary.processing') }}
                     </div>
 
                     <UAlert v-else-if="noteError" color="error" icon="i-heroicons-exclamation-triangle"
@@ -110,20 +112,19 @@ const getDisplayName = (dbName: string) => {
 
                     <template v-else-if="fileText">
                         <div class="text-center space-y-2">
-                            <h3 class="text-xl font-medium">Wygeneruj nowe streszczenie</h3>
-                            <p class="text-gray-500 max-w-md mx-auto">Sztuczna inteligencja przeanalizuje Twoją notatkę
-                                i przygotuje jej zwięzłe podsumowanie.</p>
+                            <h3 class="text-xl font-medium">{{ t('summary.generateNew') }}</h3>
+                            <p class="text-gray-500 max-w-md mx-auto">{{ t('summary.generateHint') }}</p>
                         </div>
 
                         <div class="flex flex-col sm:flex-row gap-4 items-center justify-center w-full max-w-sm mt-4">
-                            <UFormField label="Poziom szczegółowości" class="w-full flex-1">
+                            <UFormField :label="t('summary.detailLevel')" class="w-full flex-1">
                                 <USelect v-model="detailLevel" :items="detailOptions" value-key="value"
                                     icon="i-heroicons-adjustments-horizontal" />
                             </UFormField>
 
                             <UButton @click="handleGenerate" :loading="summaryLoading" :disabled="!fileText"
                                 icon="i-heroicons-cpu-chip" size="lg" class="mt-6 w-full sm:w-auto">
-                                Generuj
+                                {{ t('summary.generate') }}
                             </UButton>
                         </div>
                     </template>
@@ -138,12 +139,12 @@ const getDisplayName = (dbName: string) => {
                 <template #header>
                     <div class="flex items-center gap-2">
                         <UIcon name="i-heroicons-clock" class="text-primary w-6 h-6" />
-                        <h3 class="text-xl font-bold">Zapisane streszczenia dla tej notatki</h3>
+                        <h3 class="text-xl font-bold">{{ t('summary.savedTitle') }}</h3>
                     </div>
                 </template>
 
                 <div v-if="summariesLoading" class="p-4 text-center text-gray-500">
-                    Ładowanie listy streszczeń...
+                    {{ t('summary.loadingSaved') }}
                 </div>
 
                 <div v-else class="grid gap-3">
@@ -155,13 +156,13 @@ const getDisplayName = (dbName: string) => {
                             </div>
                             <div class="flex flex-col">
                                 <span class="font-semibold">{{ getDisplayName(saved.name) }}</span>
-                                <span class="text-xs text-gray-500">{{ new Date(saved.created_at).toLocaleDateString()
+                                <span class="text-xs text-gray-500">{{ new Date(saved.created_at).toLocaleDateString(intlLocale)
                                     }}</span>
                             </div>
                         </div>
                         <UButton color="primary" variant="subtle" icon="i-heroicons-eye"
                             @click="loadExistingSummary(saved)">
-                            Otwórz
+                            {{ t('summary.open') }}
                         </UButton>
                     </div>
                 </div>
@@ -171,10 +172,10 @@ const getDisplayName = (dbName: string) => {
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <UIcon name="i-heroicons-document-text" class="w-8 h-8 text-primary" />
-                        <h3 class="text-3xl font-bold">Streszczenie</h3>
+                        <h3 class="text-3xl font-bold">{{ t('summary.title') }}</h3>
                     </div>
                     <UButton color="neutral" variant="ghost" icon="i-heroicons-arrow-path" @click="summary = null">
-                        Zamknij i wróć
+                        {{ t('summary.closeReturn') }}
                     </UButton>
                 </div>
 
@@ -182,7 +183,7 @@ const getDisplayName = (dbName: string) => {
                     <template #header>
                         <div class="flex items-center gap-2">
                             <UIcon name="i-heroicons-bookmark" class="text-primary w-5 h-5" />
-                            <h4 class="text-lg font-bold">Przegląd</h4>
+                            <h4 class="text-lg font-bold">{{ t('summary.overview') }}</h4>
                         </div>
                     </template>
                     <p class="text-base leading-relaxed text-gray-700 dark:text-gray-300">{{ summary.overview }}</p>
@@ -192,7 +193,7 @@ const getDisplayName = (dbName: string) => {
                     <template #header>
                         <div class="flex items-center gap-2">
                             <UIcon name="i-heroicons-list-bullet" class="text-primary w-5 h-5" />
-                            <h4 class="text-lg font-bold">Najważniejsze punkty</h4>
+                            <h4 class="text-lg font-bold">{{ t('summary.keyPoints') }}</h4>
                         </div>
                     </template>
                     <ul class="space-y-3">
@@ -219,11 +220,11 @@ const getDisplayName = (dbName: string) => {
                     <div class="flex items-center justify-center gap-4">
                         <UButton color="neutral" variant="ghost" icon="i-heroicons-sparkles"
                             @click="summary = null">
-                            Wygeneruj inne
+                            {{ t('summary.generateAnother') }}
                         </UButton>
                         <UButton color="primary" variant="soft" icon="i-lucide-arrow-left"
                             @click="router.push('/dashboard/summary')">
-                            Wróć do listy streszczeń
+                            {{ t('summary.backToList') }}
                         </UButton>
                     </div>
                 </UCard>

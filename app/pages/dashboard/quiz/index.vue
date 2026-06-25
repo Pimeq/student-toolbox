@@ -5,6 +5,7 @@ definePageMeta({
     layout: 'dashboard'
 })
 
+const { t } = useI18n()
 const { notes, fetchNotes } = useNotes()
 
 const { pending: loading, error } = await useAsyncData('quiz-notes-list', async () => {
@@ -15,30 +16,29 @@ const { pending: loading, error } = await useAsyncData('quiz-notes-list', async 
 
 <template>
     <UDashboardPanel>
-        <UDashboardNavbar title="Twoje Quizy" />
+        <UDashboardNavbar :title="t('quizList.navTitle')" />
 
         <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-8">
             <header>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Generator Quizów AI</h2>
-                <p class="text-gray-500 mt-1">Wybierz jedną ze swoich notatek, aby sprawdzić swoją wiedzę lub
-                    wygenerować nowy test.</p>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('quizList.heading') }}</h2>
+                <p class="text-gray-500 mt-1">{{ t('quizList.description') }}</p>
             </header>
 
             <div v-if="loading" class="flex flex-col items-center justify-center py-12 space-y-4">
                 <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-primary" />
-                <p class="text-gray-500">Pobieranie Twoich notatek...</p>
+                <p class="text-gray-500">{{ t('quizList.fetching') }}</p>
             </div>
 
             <UAlert v-else-if="error" color="error" variant="soft" icon="i-heroicons-exclamation-circle"
-                title="Wystąpił problem" description="Nie udało się załadować notatek. Spróbuj odświeżyć stronę." />
+                :title="t('quizList.errorTitle')" :description="t('quizList.errorDescription')" />
 
             <div v-else-if="notes.length === 0"
                 class="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
                 <UIcon name="i-heroicons-document-minus" class="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Brak notatek</h3>
-                <p class="text-gray-500">Dodaj najpierw jakąś notatkę, aby móc wygenerować z niej quiz.</p>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ t('quizList.empty') }}</h3>
+                <p class="text-gray-500">{{ t('quizList.emptyHint') }}</p>
                 <UButton to="/dashboard/notes" color="primary" variant="ghost" class="mt-4">
-                    Przejdź do notatek
+                    {{ t('quizList.goToNotes') }}
                 </UButton>
             </div>
 
@@ -52,15 +52,15 @@ const { pending: loading, error } = await useAsyncData('quiz-notes-list', async 
                                 class="w-6 h-6 text-gray-400 group-hover:text-primary" />
                         </div>
                         <div>
-                            <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ note.title || 'Bez tytułu' }}
+                            <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ note.title || t('quizList.untitled') }}
                             </h3>
-                            <p class="text-sm text-gray-500">Kliknij przycisk, aby zarządzać quizami dla tej treści.</p>
+                            <p class="text-sm text-gray-500">{{ t('quizList.cardHint') }}</p>
                         </div>
                     </div>
 
                     <UButton color="primary" variant="soft" :to="`/dashboard/quiz/${note.id}`"
                         icon="i-heroicons-sparkles" size="lg" class="w-full sm:w-auto">
-                        Generuj / Rozwiąż Quiz
+                        {{ t('quizList.action') }}
                     </UButton>
                 </div>
             </div>

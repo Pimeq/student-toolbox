@@ -6,6 +6,8 @@ definePageMeta({
 })
 
 const router = useRouter()
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
 const { notes, addNote: createNewNote, updateTitle: saveNewTitle, deleteNote: removeNote, fetchNotes, setNoteVisibility, getUserGroups } = useNotes()
 
 const isGroupModalOpen = ref(false)
@@ -40,7 +42,7 @@ const openGroupSelectModal = async (noteId: string) => {
 		userGroups.value = groups
 		selectedGroupId.value = groups[0]?.id || ''
 	} catch (error) {
-		console.error("Błąd pobierania grup", error)
+		console.error(t("notes.alerts.fetchGroupsError"), error)
 	} finally {
 		isFetchingGroups.value = false
 	}
@@ -53,7 +55,7 @@ const confirmGroupSelection = async () => {
 		await setNoteVisibility(targetNoteId.value, 'shared', selectedGroupId.value)
 		isGroupModalOpen.value = false
 	} catch (error: any) {
-		alert(error?.message || 'Nie udało się zmienić typu notatki.')
+		alert(error?.message || t('notes.alerts.visibilityFailed'))
 		console.error(error)
 	}
 }
@@ -72,8 +74,8 @@ const selectedCount = computed(() => selectedNoteIds.value.length)
 const personalNotes = computed(() => notes.value.filter(note => note.visibility === 'personal'))
 const sharedNotes = computed(() => notes.value.filter(note => note.visibility === 'shared'))
 const noteSections = computed(() => [
-	{ key: 'personal', label: 'Personal', tag: 'Ps', notes: personalNotes.value },
-	{ key: 'shared', label: 'Shared', tag: 'Sh', notes: sharedNotes.value }
+	{ key: 'personal', label: t('notes.sectionPersonal'), tag: 'Ps', notes: personalNotes.value },
+	{ key: 'shared', label: t('notes.sectionShared'), tag: 'Sh', notes: sharedNotes.value }
 ])
 
 const startEditingTitle = (note: NoteItem) => {
@@ -118,7 +120,7 @@ const saveTitle = async (note: NoteItem) => {
 		try {
 			await saveNewTitle(note.id, editingTitleValue.value)
 		} catch (error: any) {
-			alert("Nie udało się zapisać nazwy notatki.")
+			alert(t("notes.alerts.saveTitleFailed"))
 			console.error(error)
 		}
 	}
@@ -132,7 +134,7 @@ const handleAddNote = async () => {
 		isCreating.value = true
 		await createNewNote()
 	} catch (e: any) {
-		alert("Błąd: " + (e.message || JSON.stringify(e)))
+		alert(t("notes.alerts.createError", { message: e.message || JSON.stringify(e) }))
 		console.error(e)
 	} finally {
 		isCreating.value = false
@@ -140,12 +142,12 @@ const handleAddNote = async () => {
 }
 
 const handleDeleteNote = async (id: string) => {
-	if (confirm("Czy na pewno chcesz usunąć tę notatkę?")) {
+	if (confirm(t("notes.alerts.deleteConfirm"))) {
 		try {
 			await removeNote(id)
 			selectedNoteIds.value = selectedNoteIds.value.filter(noteId => noteId !== id)
 		} catch (error) {
-			alert("Wystąpił błąd przy usuwaniu notatki.")
+			alert(t("notes.alerts.deleteError"))
 		}
 	}
 }
@@ -154,7 +156,7 @@ const handleDeleteSelectedNotes = async () => {
 	if (selectedNoteIds.value.length === 0) return
 
 	const count = selectedNoteIds.value.length
-	if (!confirm(`Czy na pewno chcesz usunąć ${count} notatek?`)) return
+	if (!confirm(t('notes.alerts.deleteSelectedConfirm', { count }))) return
 
 	isBulkDeleting.value = true
 	let failed = 0
@@ -173,7 +175,7 @@ const handleDeleteSelectedNotes = async () => {
 	isSelectionMode.value = false
 
 	if (failed > 0) {
-		alert(`Nie udało się usunąć ${failed} notatek.`)
+		alert(t('notes.alerts.deleteSelectedFailed', { count: failed }))
 	}
 }
 
@@ -197,7 +199,7 @@ const handleToggleVisibility = async (note: NoteItem) => {
 			await setNoteVisibility(note.id, nextVisibility)
 		}
 	} catch (error: any) {
-		alert(error?.message || 'Nie udało się zmienić typu notatki.')
+		alert(error?.message || t('notes.alerts.visibilityFailed'))
 		console.error(error)
 	}
 }
@@ -207,17 +209,17 @@ const formatDate = (dateString: string) => {
 	const now = new Date()
 	const diff = now.getTime() - date.getTime()
 
-	// Dziś
+	// Today
 	if (diff < 86400000 && date.getDate() === now.getDate()) {
-		return `Dzisiaj o ${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`
+		return t('notes.today', { time: date.toLocaleTimeString(intlLocale.value, { hour: '2-digit', minute: '2-digit' }) })
 	}
 
-	// Wczoraj
+	// Yesterday
 	if (diff < 172800000) {
-		return `Wczoraj o ${date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`
+		return t('notes.yesterday', { time: date.toLocaleTimeString(intlLocale.value, { hour: '2-digit', minute: '2-digit' }) })
 	}
 
-	return date.toLocaleDateString('pl-PL', {
+	return date.toLocaleDateString(intlLocale.value, {
 		day: 'numeric', month: 'short', year: 'numeric'
 	})
 }
@@ -257,7 +259,7 @@ const accentMap: Record<NoteColor, string> = {
 			class="h-16 shrink-0 border-b border-gray-200 dark:border-gray-800 px-4 flex items-center gap-4 bg-white dark:bg-gray-900">
 			<!-- Poniższy element zakłada że używasz zewnętrznych layoutów. Jeśli chcesz ikonę "burgera", oto darmowa alternatywa -->
 			<UButton color="neutral" variant="ghost" icon="i-heroicons-bars-3" class="lg:hidden" />
-			<h1 class="text-xl font-bold font-sans">Notatki</h1>
+			<h1 class="text-xl font-bold font-sans">{{ t('notes.title') }}</h1>
 		</header>
 
 		<div class="flex-1 min-h-0 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/20 p-8 pt-6 pb-24 md:pb-8">
@@ -267,14 +269,14 @@ const accentMap: Record<NoteColor, string> = {
 					<div class="flex items-center gap-2">
 						<UButton icon="i-lucide-list-checks" size="xs" color="neutral" variant="soft"
 							@click="toggleSelectionMode">
-							{{ isSelectionMode ? 'Zakończ zaznaczanie' : 'Zaznacz notatki' }}
+							{{ isSelectionMode ? t('notes.endSelecting') : t('notes.selectNotes') }}
 						</UButton>
 						<span v-if="isSelectionMode" class="text-xs text-gray-500 dark:text-gray-400">
-							Zaznaczone: {{ selectedCount }}
+							{{ t('notes.selected', { count: selectedCount }) }}
 						</span>
 						<UButton v-if="isSelectionMode && selectedCount > 0" icon="i-lucide-x" size="xs" color="neutral"
 							variant="ghost" @click="clearSelection">
-							Wyczyść
+							{{ t('notes.clear') }}
 						</UButton>
 					</div>
 
@@ -282,17 +284,17 @@ const accentMap: Record<NoteColor, string> = {
 						<UButton :loading="isBulkDeleting" :disabled="!isSelectionMode || selectedCount === 0"
 							icon="i-lucide-trash-2" size="sm" color="error" variant="soft"
 							@click="handleDeleteSelectedNotes">
-							Usuń zaznaczone
+							{{ t('notes.deleteSelected') }}
 						</UButton>
 						<UButton :loading="isCreating" icon="i-lucide-plus" size="sm" color="neutral" variant="solid"
-							@click="handleAddNote">Nowa Notatka</UButton>
+							@click="handleAddNote">{{ t('notes.newNote') }}</UButton>
 					</div>
 				</div>
 			</div>
 
 			<div v-if="isLoadingNotes" class="flex flex-col items-center justify-center h-full gap-3 text-gray-500 dark:text-gray-400">
 				<UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin" />
-				<p class="text-sm">Ladowanie notatek...</p>
+				<p class="text-sm">{{ t('notes.loadingNotes') }}</p>
 			</div>
 
 			<!-- Pusty stan (Gdy nie ma notatek) -->
@@ -300,11 +302,11 @@ const accentMap: Record<NoteColor, string> = {
 				class="flex flex-col items-center justify-center h-full text-center space-y-4">
 				<UIcon name="i-lucide-file-x" class="w-16 h-16 text-gray-400" />
 				<div>
-					<h3 class="text-lg font-medium text-gray-900 dark:text-white">Brak notatek</h3>
-					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Zacznij pisać swoją pierwszą notatkę.</p>
+					<h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ t('notes.empty') }}</h3>
+					<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('notes.emptyHint') }}</p>
 				</div>
 				<UButton :loading="isCreating" icon="i-lucide-plus" color="neutral" variant="solid"
-					@click="handleAddNote">Dodaj Notatkę</UButton>
+					@click="handleAddNote">{{ t('notes.addNote') }}</UButton>
 			</div>
 
 			<div v-else class="space-y-8">
@@ -320,7 +322,7 @@ const accentMap: Record<NoteColor, string> = {
 
 					<div v-if="section.notes.length === 0"
 						class="text-sm text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-900/30 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-4">
-						Brak notatek w sekcji {{ section.label }}.
+						{{ t('notes.sectionEmpty', { section: section.label }) }}
 					</div>
 
 					<div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -359,7 +361,7 @@ const accentMap: Record<NoteColor, string> = {
 													: 'border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400'
 											]">
 												<UIcon :name="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'" class="h-3 w-3 shrink-0" />
-												{{ note.visibility === 'shared' ? 'Udostępniona' : 'Prywatna' }}
+												{{ note.visibility === 'shared' ? t('notes.shared') : t('notes.private') }}
 											</span>
 										</div>
 										<div v-if="isEditingTitle === note.id" class="flex gap-1">
@@ -408,16 +410,16 @@ const accentMap: Record<NoteColor, string> = {
 										:icon="note.visibility === 'shared' ? 'i-lucide-users' : 'i-lucide-lock'"
 										color="neutral" variant="ghost" size="xs"
 										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
-										:title="note.visibility === 'shared' ? 'Zmień na prywatną' : 'Udostępnij'"
+										:title="note.visibility === 'shared' ? t('notes.makePrivate') : t('notes.share')"
 										@click.stop="handleToggleVisibility(note)" />
 									<UButton v-if="!isSelectionMode" icon="i-heroicons-sparkles" color="primary"
 										variant="ghost" size="xs"
 										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
-										@click.stop="openQuizForNote(note.id)" title="Wygeneruj quiz z tej notatki" />
+										@click.stop="openQuizForNote(note.id)" :title="t('notes.generateQuiz')" />
 									<UButton v-if="!isSelectionMode && note.is_owner" icon="i-lucide-trash" color="error"
 										variant="ghost" size="xs"
 										class="opacity-70 group-hover:opacity-100 transition-opacity shrink-0"
-										@click.stop="handleDeleteNote(note.id)" title="Usuń notatkę" />
+										@click.stop="handleDeleteNote(note.id)" :title="t('notes.deleteNote')" />
 								</div>
 							</div>
 						</div>
@@ -430,19 +432,19 @@ const accentMap: Record<NoteColor, string> = {
 					<template #header>
 						<div class="flex items-center justify-between">
 							<h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">
-								Udostepnij notatke
+								{{ t('notes.shareTitle') }}
 							</h3>
 						</div>
 					</template>
 
 					<div class="p-4 space-y-4">
-						<p class="text-sm text-gray-500 dark:text-gray-400">Zaznacz grupe z ponizszej listy:</p>
+						<p class="text-sm text-gray-500 dark:text-gray-400">{{ t('notes.selectGroup') }}</p>
 
 						<div v-if="isFetchingGroups" class="flex justify-center py-4">
 							<UIcon name="i-lucide-loader-2" class="w-6 h-6 animate-spin text-gray-500" />
 						</div>
 						<div v-else-if="userGroups.length === 0" class="text-sm text-red-500 py-2">
-							Nie masz dodanych zadnych grup uczelnianych!
+							{{ t('notes.noGroups') }}
 						</div>
 						<div v-else class="space-y-3 pl-1">
 							<URadioGroup v-model="selectedGroupId" name="note-group-selection"
@@ -452,9 +454,9 @@ const accentMap: Record<NoteColor, string> = {
 
 					<template #footer>
 						<div class="flex justify-end gap-2">
-							<UButton color="neutral" variant="ghost" @click="isGroupModalOpen = false">Anuluj</UButton>
+							<UButton color="neutral" variant="ghost" @click="isGroupModalOpen = false">{{ t('common.cancel') }}</UButton>
 							<UButton color="neutral" @click="confirmGroupSelection"
-								:disabled="!selectedGroupId || isFetchingGroups">Zatwierdz</UButton>
+								:disabled="!selectedGroupId || isFetchingGroups">{{ t('common.confirm') }}</UButton>
 						</div>
 					</template>
 				</UCard>

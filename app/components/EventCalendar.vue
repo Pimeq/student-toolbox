@@ -81,6 +81,8 @@ type UserLike = { id?: string; sub?: string } | null | undefined
 type SessionKind = 'lecture' | 'lab' | 'exercise' | 'project'
 
 // State 
+const { t, locale } = useI18n()
+const intlLocale = computed(() => (locale.value === 'en' ? 'en-US' : 'pl-PL'))
 const supabase = useSupabaseClient<Database>()
 const user = useSupabaseUser()
 const toast = useToast()
@@ -337,6 +339,9 @@ const sessionKindConfig = {
   },
 }
 
+const typeLabel = (key: keyof typeof typeConfig) => t(`calendar.type.${key}`)
+const sessionKindLabel = (kind: SessionKind) => t(`calendar.sessionKind.${kind}`)
+
 const events = ref<CalEvent[]>([])
 
 const { data: hierarchy } = await useAsyncData<{
@@ -520,7 +525,7 @@ function resolveTargetGroupIdForCreate() {
 async function ensurePersonalGroupId() {
   if (personalGroupId.value) return personalGroupId.value
   if (!currentUserId.value) {
-    throw new Error('Brak aktywnego użytkownika.')
+    throw new Error(t('calendar.errors.noActiveUser'))
   }
 
   const { data: group, error: groupError } = await supabase
@@ -535,7 +540,7 @@ async function ensurePersonalGroupId() {
   if (groupError) throw groupError
 
   if (!group?.id) {
-    throw new Error('Nie udało się utworzyć grupy prywatnej.')
+    throw new Error(t('calendar.errors.createPrivateGroupFailed'))
   }
 
   const { error: membershipError } = await supabase.from('user_memberships').insert({
@@ -773,13 +778,13 @@ function resolveSeriesScope(choice: 'single' | 'following' | 'cancel') {
 const calOptions = computed<CalendarOptions>(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   initialView: 'timeGridWeek',
-  locale: 'pl',
+  locale: locale.value === 'en' ? 'en' : 'pl',
   headerToolbar: {
     left: 'prev,next today',
     center: 'title',
     right: 'timeGridWeek,dayGridMonth',
   },
-  buttonText: { today: 'Dziś', week: 'Tydzień', month: 'Miesiąc' },
+  buttonText: { today: t('calendar.today'), week: t('calendar.week'), month: t('calendar.month') },
   slotMinTime: '08:00:00',
   slotMaxTime: '21:00:00',
   slotDuration: '00:30:00',
@@ -875,8 +880,8 @@ const calOptions = computed<CalendarOptions>(() => ({
 
     if (!canMoveEvent) {
       toast.add({
-        title: 'Brak uprawnień',
-        description: 'Nie masz uprawnień do edycji tego wydarzenia.',
+        title: t('calendar.toast.noPermissionTitle'),
+        description: t('calendar.toast.noPermissionMove'),
         color: 'warning',
       })
       info.revert()
@@ -900,7 +905,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     const seriesId = (info.event.extendedProps?.seriesId as string | undefined) ?? ''
     let mode: 'single' | 'following' | 'cancel' = 'single'
     if (seriesId) {
-      mode = await askSeriesScope('To wydarzenie należy do serii. Jak zastosować przesunięcie?')
+      mode = await askSeriesScope(t('calendar.prompts.moveSeries'))
     }
 
     if (mode === 'cancel') {
@@ -919,16 +924,16 @@ const calOptions = computed<CalendarOptions>(() => ({
           if (!single) {
             info.revert()
             toast.add({
-              title: 'Brak uprawnień',
-              description: 'Nie udało się zapisać zmian dla tego wydarzenia.',
+              title: t('calendar.toast.noPermissionTitle'),
+              description: t('calendar.toast.saveChangesFailed'),
               color: 'warning',
             })
             return
           }
           await refreshEvents()
           toast.add({
-            title: 'Zaktualizowano wydarzenie',
-            description: 'Nie znaleziono kolejnych wystąpień serii, zaktualizowano tylko to wydarzenie.',
+            title: t('calendar.toast.eventUpdatedTitle'),
+            description: t('calendar.toast.noNextOccurrences'),
             color: 'warning',
           })
           return
@@ -936,16 +941,16 @@ const calOptions = computed<CalendarOptions>(() => ({
 
         await refreshEvents()
         toast.add({
-          title: 'Zaktualizowano serię',
-          description: `Przesunięto ${affected} wydarzeń w serii.`,
+          title: t('calendar.toast.seriesUpdatedTitle'),
+          description: t('calendar.toast.seriesMoved', { count: affected }),
           color: 'success',
         })
         return
       } catch (error) {
         info.revert()
         toast.add({
-          title: 'Nie udało się przesunąć serii',
-          description: error instanceof Error ? error.message : 'Wystąpił błąd podczas zapisu serii.',
+          title: t('calendar.toast.moveSeriesFailedTitle'),
+          description: error instanceof Error ? error.message : t('calendar.toast.seriesSaveError'),
           color: 'error',
         })
         return
@@ -964,7 +969,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     if (error) {
       info.revert()
       toast.add({
-        title: 'Nie udało się przesunąć wydarzenia',
+        title: t('calendar.toast.moveEventFailedTitle'),
         description: error.message,
         color: 'error',
       })
@@ -974,8 +979,8 @@ const calOptions = computed<CalendarOptions>(() => ({
     if (!data?.length) {
       info.revert()
       toast.add({
-        title: 'Brak uprawnień',
-        description: 'Nie masz uprawnień do edycji tego wydarzenia.',
+        title: t('calendar.toast.noPermissionTitle'),
+        description: t('calendar.toast.noPermissionMove'),
         color: 'warning',
       })
       return
@@ -990,8 +995,8 @@ const calOptions = computed<CalendarOptions>(() => ({
 
     if (!canResizeEvent) {
       toast.add({
-        title: 'Brak uprawnień',
-        description: 'Nie możesz zmieniać długości tego wydarzenia.',
+        title: t('calendar.toast.noPermissionTitle'),
+        description: t('calendar.toast.noPermissionResize'),
         color: 'warning',
       })
       info.revert()
@@ -1015,7 +1020,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     const seriesId = (info.event.extendedProps?.seriesId as string | undefined) ?? ''
     let mode: 'single' | 'following' | 'cancel' = 'single'
     if (seriesId) {
-      mode = await askSeriesScope('To wydarzenie należy do serii. Jak zastosować zmianę długości?')
+      mode = await askSeriesScope(t('calendar.prompts.resizeSeries'))
     }
 
     if (mode === 'cancel') {
@@ -1034,16 +1039,16 @@ const calOptions = computed<CalendarOptions>(() => ({
           if (!single) {
             info.revert()
             toast.add({
-              title: 'Brak uprawnień',
-              description: 'Nie udało się zapisać zmian dla tego wydarzenia.',
+              title: t('calendar.toast.noPermissionTitle'),
+              description: t('calendar.toast.saveChangesFailed'),
               color: 'warning',
             })
             return
           }
           await refreshEvents()
           toast.add({
-            title: 'Zaktualizowano wydarzenie',
-            description: 'Nie znaleziono kolejnych wystąpień serii, zaktualizowano tylko to wydarzenie.',
+            title: t('calendar.toast.eventUpdatedTitle'),
+            description: t('calendar.toast.noNextOccurrences'),
             color: 'warning',
           })
           return
@@ -1051,16 +1056,16 @@ const calOptions = computed<CalendarOptions>(() => ({
 
         await refreshEvents()
         toast.add({
-          title: 'Zaktualizowano serię',
-          description: `Zmieniono czas trwania dla ${affected} wydarzeń w serii.`,
+          title: t('calendar.toast.seriesUpdatedTitle'),
+          description: t('calendar.toast.seriesResized', { count: affected }),
           color: 'success',
         })
         return
       } catch (error) {
         info.revert()
         toast.add({
-          title: 'Nie udało się zaktualizować serii',
-          description: error instanceof Error ? error.message : 'Wystąpił błąd podczas zapisu serii.',
+          title: t('calendar.toast.resizeSeriesFailedTitle'),
+          description: error instanceof Error ? error.message : t('calendar.toast.seriesSaveError'),
           color: 'error',
         })
         return
@@ -1079,7 +1084,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     if (error) {
       info.revert()
       toast.add({
-        title: 'Nie udało się zmienić czasu trwania',
+        title: t('calendar.toast.resizeEventFailedTitle'),
         description: error.message,
         color: 'error',
       })
@@ -1089,8 +1094,8 @@ const calOptions = computed<CalendarOptions>(() => ({
     if (!data?.length) {
       info.revert()
       toast.add({
-        title: 'Brak uprawnień',
-        description: 'Nie masz uprawnień do edycji tego wydarzenia.',
+        title: t('calendar.toast.noPermissionTitle'),
+        description: t('calendar.toast.noPermissionMove'),
         color: 'warning',
       })
       return
@@ -1103,7 +1108,7 @@ const calOptions = computed<CalendarOptions>(() => ({
     const type = arg.event.extendedProps?.type as keyof typeof typeConfig
     const loc = arg.event.extendedProps?.location
     const sessionKind = arg.event.extendedProps?.sessionKind as SessionKind | undefined
-    const sessionLabel = sessionKind ? sessionKindConfig[sessionKind]?.label : ''
+    const sessionLabel = sessionKind ? sessionKindLabel(sessionKind) : ''
     return {
       html: `
         <div class="fc-event-inner fc-event-inner--${type || 'private'}">
@@ -1135,7 +1140,7 @@ async function confirmAdd() {
     }
 
     if (!targetGroupId) {
-      addError.value = 'Wybierz konkretną grupę w górnym selekcie kalendarza.'
+      addError.value = t('calendar.errors.selectGroup')
       return
     }
 
@@ -1171,7 +1176,7 @@ async function confirmAdd() {
     await refreshEvents()
     showAddModal.value = false
   } catch (error) {
-    addError.value = error instanceof Error ? error.message : 'Nie udało się zapisać wydarzenia.'
+    addError.value = error instanceof Error ? error.message : t('calendar.errors.saveEventFailed')
   } finally {
     isCreating.value = false
   }
@@ -1180,11 +1185,11 @@ async function confirmAdd() {
 async function saveEventEdits() {
   if (!selectedEvent.value) return
   if (!editEvent.value.title.trim()) {
-    eventActionError.value = 'Tytuł jest wymagany.'
+    eventActionError.value = t('calendar.errors.titleRequired')
     return
   }
   if (!canDeleteEvent(selectedEvent.value)) {
-    eventActionError.value = 'Nie możesz edytować tego wydarzenia.'
+    eventActionError.value = t('calendar.errors.cannotEdit')
     return
   }
 
@@ -1196,7 +1201,7 @@ async function saveEventEdits() {
 
   const currentSeriesId = selectedEvent.value.extendedProps.seriesId ?? ''
   if (applyEditToFollowing.value && !currentSeriesId) {
-    eventActionError.value = 'To wydarzenie nie należy do serii powtarzalnej.'
+    eventActionError.value = t('calendar.errors.notInSeries')
     isSavingEdit.value = false
     return
   }
@@ -1247,7 +1252,7 @@ async function saveEventEdits() {
   }
 
   if (!data?.length) {
-    eventActionError.value = 'Nie udało się zapisać zmian (brak uprawnień).'
+    eventActionError.value = t('calendar.errors.saveChangesFailed')
     isSavingEdit.value = false
     return
   }
@@ -1276,14 +1281,14 @@ async function deleteEvent() {
   eventActionError.value = null
 
   if (!canDeleteEvent(selectedEvent.value)) {
-    eventActionError.value = 'Nie możesz usunąć tego wydarzenia.'
+    eventActionError.value = t('calendar.errors.cannotDelete')
     return
   }
 
   const eventId = Number(selectedEvent.value.id)
   const seriesId = selectedEvent.value.extendedProps.seriesId ?? ''
   const deleteMode = seriesId
-    ? await askSeriesScope('To wydarzenie należy do serii. Usunąć tylko to, czy to i kolejne tygodnie?')
+    ? await askSeriesScope(t('calendar.prompts.deleteSeries'))
     : 'single'
 
   if (deleteMode === 'cancel') return
@@ -1310,7 +1315,7 @@ async function deleteEvent() {
       .map(row => row.id)
 
     if (!idsToDelete.length) {
-      eventActionError.value = 'Nie znaleziono kolejnych wystąpień serii do usunięcia.'
+      eventActionError.value = t('calendar.errors.noNextOccurrences')
       return
     }
 
@@ -1349,17 +1354,17 @@ async function deleteEvent() {
       .maybeSingle()
 
     if (probeError) {
-      eventActionError.value = `Nie udało się usunąć wydarzenia. ${probeError.message}`
+      eventActionError.value = t('calendar.errors.deleteFailedProbe', { message: probeError.message })
       return
     }
 
     if (!probeData) {
-      eventActionError.value = 'Nie udało się usunąć wydarzenia. Rekord nie istnieje albo nie masz do niego dostępu.'
+      eventActionError.value = t('calendar.errors.deleteFailedNotExist')
       return
     }
 
     const ownerInfo = `owner=${probeData.uploaded_by ?? 'null'}, user=${currentUserId.value || 'null'}`
-    eventActionError.value = `Nie udało się usunąć wydarzenia. ${ownerInfo}`
+    eventActionError.value = t('calendar.errors.deleteFailed', { info: ownerInfo })
     return
   }
 
@@ -1370,7 +1375,7 @@ async function deleteEvent() {
 function formatDate(str: string) {
   if (!str) return ''
   const d = new Date(str)
-  return d.toLocaleString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(intlLocale.value, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 function canDeleteEvent(event: CalEvent): boolean {
@@ -1422,9 +1427,9 @@ watch([currentUserId, membershipsPending, memberships], async () => {
   try {
     await ensurePersonalGroupId()
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Nie udało się utworzyć prywatnej grupy.'
+    const message = error instanceof Error ? error.message : t('calendar.toast.createPrivateGroupFailed')
     toast.add({
-      title: 'Błąd grupy prywatnej',
+      title: t('calendar.toast.privateGroupErrorTitle'),
       description: message,
       color: 'error',
     })
@@ -1455,12 +1460,12 @@ watch(showEventModal, (open) => {
       <div class="legend">
         <div v-for="(cfg, key) in typeConfig" :key="key" class="legend-item">
           <span class="legend-dot" :class="`legend-dot--${key}`" />
-          <span>{{ cfg.label }}</span>
+          <span>{{ typeLabel(key) }}</span>
         </div>
       </div>
 
       <div class="group-context">
-        <label for="calendar-group-context">Grupa</label>
+        <label for="calendar-group-context">{{ t('calendar.group') }}</label>
         <select id="calendar-group-context" v-model="selectedViewGroupId">
           <option v-for="group in selectableViewGroups" :key="group.id" :value="group.id">
             {{ group.name }}
@@ -1479,8 +1484,8 @@ watch(showEventModal, (open) => {
     <UModal
       v-model:open="showEventModal"
       :ui="modalUi"
-      :title="isEditingEvent ? 'Edycja wydarzenia' : (selectedEvent?.title || 'Szczegóły wydarzenia')"
-      :description="isEditingEvent ? 'Formularz edycji wybranego wydarzenia.' : 'Szczegóły oraz dostępne akcje dla wybranego wydarzenia.'"
+      :title="isEditingEvent ? t('calendar.editEventTitle') : (selectedEvent?.title || t('calendar.eventDetails'))"
+      :description="isEditingEvent ? t('calendar.editFormDescription') : t('calendar.detailsDescription')"
     >
       <template #content>
         <div v-if="selectedEvent" class="modal">
@@ -1488,7 +1493,7 @@ watch(showEventModal, (open) => {
           <button class="modal-close" @click="showEventModal = false">✕</button>
 
           <div class="modal-type-badge" :class="`modal-type-badge--${selectedEvent.extendedProps.type}`">
-            {{ typeConfig[selectedEvent.extendedProps.type]?.label }}
+            {{ typeLabel(selectedEvent.extendedProps.type) }}
           </div>
 
           <template v-if="!isEditingEvent">
@@ -1505,38 +1510,38 @@ watch(showEventModal, (open) => {
               </div>
               <div v-if="selectedEvent.extendedProps.sessionKind" class="meta-row">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 4.5h11M4.5 2.5v4M11.5 2.5v4M2.5 7.5h11v6h-11z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                <span>{{ sessionKindConfig[selectedEvent.extendedProps.sessionKind].label }}</span>
+                <span>{{ sessionKindLabel(selectedEvent.extendedProps.sessionKind) }}</span>
               </div>
               <p v-if="selectedEvent.extendedProps.description" class="meta-desc">{{ selectedEvent.extendedProps.description }}</p>
             </div>
           </template>
 
           <template v-else>
-            <h2 class="modal-title">Edycja wydarzenia</h2>
+            <h2 class="modal-title">{{ t('calendar.editEventTitle') }}</h2>
             <div class="form">
-              <label>Tytuł *</label>
-              <input v-model="editEvent.title" placeholder="Tytuł wydarzenia">
+              <label>{{ t('calendar.titleLabel') }}</label>
+              <input v-model="editEvent.title" :placeholder="t('calendar.titlePlaceholder')">
 
-              <label>Notatka</label>
-              <textarea v-model="editEvent.description" placeholder="Opis wydarzenia" rows="3" />
+              <label>{{ t('calendar.note') }}</label>
+              <textarea v-model="editEvent.description" :placeholder="t('calendar.notePlaceholder')" rows="3" />
 
-              <label>Lokalizacja</label>
-              <input v-model="editEvent.location" placeholder="np. Sala 204">
+              <label>{{ t('calendar.location') }}</label>
+              <input v-model="editEvent.location" :placeholder="t('calendar.locationPlaceholder')">
 
               <template v-if="selectedEvent?.extendedProps.type === 'private' || currentRole === 'instructor' || currentRole === 'admin'">
-                <label>Typ zajęć</label>
+                <label>{{ t('calendar.sessionType') }}</label>
                 <select v-model="editEvent.sessionKind">
-                  <option value="">Brak</option>
-                  <option value="lecture">Wykład</option>
-                  <option value="lab">Laboratorium</option>
-                  <option value="exercise">Ćwiczenia</option>
-                  <option value="project">Projekt</option>
+                  <option value="">{{ t('sessionKind.none') }}</option>
+                  <option value="lecture">{{ t('calendar.sessionKind.lecture') }}</option>
+                  <option value="lab">{{ t('calendar.sessionKind.lab') }}</option>
+                  <option value="exercise">{{ t('calendar.sessionKind.exercise') }}</option>
+                  <option value="project">{{ t('calendar.sessionKind.project') }}</option>
                 </select>
               </template>
 
               <label v-if="selectedEvent?.extendedProps.seriesId" class="repeat-toggle">
                 <input v-model="applyEditToFollowing" type="checkbox">
-                <span>Zastosuj do tego i kolejnych wystąpień serii</span>
+                <span>{{ t('calendar.applyToFollowing') }}</span>
               </label>
             </div>
           </template>
@@ -1544,12 +1549,12 @@ watch(showEventModal, (open) => {
           <p v-if="eventActionError" class="modal-error">{{ eventActionError }}</p>
 
           <div v-if="canDeleteSelectedEvent" class="modal-actions">
-            <button class="btn-delete" @click="deleteEvent">Usuń event</button>
+            <button class="btn-delete" @click="deleteEvent">{{ t('calendar.deleteEvent') }}</button>
             <button class="btn-close" @click="isEditingEvent = !isEditingEvent">
-              {{ isEditingEvent ? 'Podgląd' : 'Edytuj' }}
+              {{ isEditingEvent ? t('calendar.preview') : t('calendar.edit') }}
             </button>
             <button v-if="isEditingEvent" class="btn-confirm" :disabled="isSavingEdit" @click="saveEventEdits">
-              {{ isSavingEdit ? 'Zapisywanie…' : 'Zapisz zmiany' }}
+              {{ isSavingEdit ? t('calendar.saving') : t('calendar.saveChanges') }}
             </button>
           </div>
         </div>
@@ -1560,60 +1565,60 @@ watch(showEventModal, (open) => {
     <UModal
       v-model:open="showAddModal"
       :ui="modalUi"
-      title="Nowy event"
-      description="Formularz dodawania nowego wydarzenia do kalendarza."
+      :title="t('calendar.newEvent')"
+      :description="t('calendar.newEventDescription')"
     >
       <template #content>
         <div class="modal">
           <div class="modal-stripe modal-stripe--add" />
           <button class="modal-close" @click="showAddModal = false">✕</button>
 
-          <h2 class="modal-title modal-title--add">Nowy event</h2>
+          <h2 class="modal-title modal-title--add">{{ t('calendar.newEvent') }}</h2>
           <p v-if="addSlot" class="modal-sub">{{ formatDate(addSlot.start) }}</p>
 
           <p v-if="addError" class="modal-error">{{ addError }}</p>
 
           <div class="form">
-            <label>Tytuł *</label>
-            <input v-model="newEvent.title" placeholder="np. Wykład: Algorytmy" @keyup.enter="confirmAdd">
+            <label>{{ t('calendar.titleLabel') }}</label>
+            <input v-model="newEvent.title" :placeholder="t('calendar.newEventTitlePlaceholder')" @keyup.enter="confirmAdd">
 
-            <label>Lokalizacja</label>
-            <input v-model="newEvent.location" placeholder="np. Sala 204">
+            <label>{{ t('calendar.location') }}</label>
+            <input v-model="newEvent.location" :placeholder="t('calendar.locationPlaceholder')">
 
-            <label>Notatka</label>
-            <textarea v-model="newEvent.description" placeholder="Opcjonalny opis…" rows="3" />
+            <label>{{ t('calendar.note') }}</label>
+            <textarea v-model="newEvent.description" :placeholder="t('calendar.optionalDescription')" rows="3" />
 
             <template v-if="createAsPrivate || currentRole === 'instructor' || currentRole === 'admin'">
-              <label>Typ zajęć</label>
+              <label>{{ t('calendar.sessionType') }}</label>
               <select v-model="newEvent.sessionKind">
-                <option value="">Brak</option>
-                <option value="lecture">Wykład</option>
-                <option value="lab">Laboratorium</option>
-                <option value="exercise">Ćwiczenia</option>
-                <option value="project">Projekt</option>
+                <option value="">{{ t('sessionKind.none') }}</option>
+                <option value="lecture">{{ t('calendar.sessionKind.lecture') }}</option>
+                <option value="lab">{{ t('calendar.sessionKind.lab') }}</option>
+                <option value="exercise">{{ t('calendar.sessionKind.exercise') }}</option>
+                <option value="project">{{ t('calendar.sessionKind.project') }}</option>
               </select>
             </template>
 
             <label class="repeat-toggle">
               <input v-model="createAsPrivate" type="checkbox" :disabled="!canCreateGroupEventInSelectedGroup">
-              <span>Prywatne (widoczne tylko dla mnie)</span>
+              <span>{{ t('calendar.privateLabel') }}</span>
             </label>
 
             <label class="repeat-toggle">
               <input v-model="repeatWeekly" type="checkbox">
-              <span>Powtarzaj co tydzień</span>
+              <span>{{ t('calendar.repeatWeekly') }}</span>
             </label>
 
             <template v-if="repeatWeekly">
-              <label>Ile tygodni (max {{ semesterWeekLimit }})</label>
+              <label>{{ t('calendar.weeksCount', { limit: semesterWeekLimit }) }}</label>
               <input v-model.number="repeatWeeks" type="number" min="1" :max="semesterWeekLimit">
             </template>
           </div>
 
           <div class="modal-actions">
-            <button class="btn-cancel" @click="showAddModal = false">Anuluj</button>
+            <button class="btn-cancel" @click="showAddModal = false">{{ t('common.cancel') }}</button>
             <button class="btn-confirm" :disabled="!newEvent.title.trim() || isCreating" @click="confirmAdd">
-              {{ isCreating ? 'Zapisywanie…' : 'Dodaj event' }}
+              {{ isCreating ? t('calendar.saving') : t('calendar.addEvent') }}
             </button>
           </div>
         </div>
@@ -1624,21 +1629,21 @@ watch(showEventModal, (open) => {
     <UModal
       v-model:open="showSeriesScopeModal"
       :ui="modalUi"
-      title="Aktualizacja serii"
-      description="Wybierz zakres aktualizacji dla wydarzenia należącego do serii."
+      :title="t('calendar.seriesUpdateTitle')"
+      :description="t('calendar.seriesUpdateDescription')"
     >
       <template #content>
         <div class="modal">
           <div class="modal-stripe modal-stripe--course" />
           <button class="modal-close" @click="resolveSeriesScope('cancel')">✕</button>
 
-          <h2 class="modal-title">Aktualizacja serii</h2>
+          <h2 class="modal-title">{{ t('calendar.seriesUpdateTitle') }}</h2>
           <p class="modal-permission">{{ seriesScopePrompt }}</p>
 
           <div class="modal-actions">
-            <button class="btn-cancel" @click="resolveSeriesScope('single')">Tylko to wydarzenie</button>
-            <button class="btn-confirm" @click="resolveSeriesScope('following')">To i kolejne tygodnie</button>
-            <button class="btn-close" @click="resolveSeriesScope('cancel')">Anuluj</button>
+            <button class="btn-cancel" @click="resolveSeriesScope('single')">{{ t('calendar.onlyThisEvent') }}</button>
+            <button class="btn-confirm" @click="resolveSeriesScope('following')">{{ t('calendar.thisAndFollowing') }}</button>
+            <button class="btn-close" @click="resolveSeriesScope('cancel')">{{ t('common.cancel') }}</button>
           </div>
         </div>
       </template>

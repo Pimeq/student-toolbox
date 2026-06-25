@@ -1,4 +1,5 @@
 <script setup lang="ts">
+	const { t } = useI18n()
 	const supabase = useSupabaseClient()
 	const router = useRouter()
 
@@ -19,7 +20,7 @@
 			await router.push("/dashboard")
 		} catch (err: any) {
 			useToast().add({
-				title: "Error",
+				title: t("common.error"),
 				description: err.message,
 				color: "warning",
 			})
@@ -34,8 +35,8 @@
 		<UCard class="w-full max-w-md shadow-xl border-2 border-primary">
 			<template #header>
 				<div class="text-center">
-					<h1 class="text-3xl font-bold">Welcome Back</h1>
-					<p class="text-sm text-gray-500 mt-2">Sign in</p>
+					<h1 class="text-3xl font-bold">{{ t('login.title') }}</h1>
+					<p class="text-sm text-gray-500 mt-2">{{ t('login.subtitle') }}</p>
 				</div>
 			</template>
 
@@ -43,26 +44,26 @@
 				@submit.prevent="handleLogin"
 				class="space-y-2">
 				<UFormField
-					label="Email"
+					:label="t('login.email')"
 					class="w-full">
 					<UInput
 						v-model="email"
 						type="email"
 						icon="i-heroicons-envelope"
-						placeholder="you@example.com"
+						:placeholder="t('login.emailPlaceholder')"
 						size="lg"
 						class="w-full"
 						required />
 				</UFormField>
 
 				<UFormField
-					label="Password"
+					:label="t('login.password')"
 					class="w-full">
 					<UInput
 						v-model="password"
 						type="password"
 						icon="i-heroicons-lock-closed"
-						placeholder="Enter your password"
+						:placeholder="t('login.passwordPlaceholder')"
 						size="lg"
 						class="w-full"
 						required />
@@ -77,7 +78,7 @@
 					<template #trailing>
 						<UIcon name="i-heroicons-arrow-right-20-solid" />
 					</template>
-					Sign In
+					{{ t('login.submit') }}
 				</UButton>
 			</form>
 
@@ -85,12 +86,12 @@
 				<div
 					class="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
 					<div class="flex items-center gap-1">
-						<span>Don't have an account?</span>
+						<span>{{ t('login.noAccount') }}</span>
 						<UButton
 							to="/register"
 							variant="ghost"
 							class="px-0">
-							Sign up
+							{{ t('login.signUp') }}
 						</UButton>
 					</div>
 				</div>

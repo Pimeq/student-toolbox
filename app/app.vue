@@ -1,7 +1,8 @@
 <script setup lang="ts">
+const { locale } = useI18n()
 useHead({
   htmlAttrs: {
-    lang: 'pl'
+    lang: locale
   }
 })
 	const color = useColorMode()

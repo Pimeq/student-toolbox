@@ -5,6 +5,8 @@
 		layout: "dashboard",
 	})
 
+	const { t, locale } = useI18n()
+	const intlLocale = computed(() => (locale.value === "en" ? "en-US" : "pl-PL"))
 	const supabase = useSupabaseClient()
 	// getUser() returns { data: { user }, error }
 	const {
@@ -18,7 +20,7 @@
 	const userEmail = computed(() => user?.email || "")
 	const displayName = computed(() => {
 		return (
-			user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User"
+			user?.user_metadata?.full_name || user?.email?.split("@")[0] || t("settings.userFallback")
 		)
 	})
 	const accountCreated = computed(() => {
@@ -89,9 +91,9 @@
 			})
 
 			if (error) throw error
-			alert("Profile updated successfully!")
+			alert(t("settings.alerts.profileUpdated"))
 		} catch (error) {
-			alert("Failed to update profile: " + (error as Error).message)
+			alert(t("settings.alerts.profileUpdateFailed", { message: (error as Error).message }))
 		} finally {
 			savingProfile.value = false
 		}
@@ -102,12 +104,12 @@
 		passwordError.value = ""
 
 		if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-			passwordError.value = "Passwords do not match"
+			passwordError.value = t("settings.alerts.passwordsMismatch")
 			return
 		}
 
 		if (passwordForm.value.newPassword.length < 6) {
-			passwordError.value = "Password must be at least 6 characters"
+			passwordError.value = t("settings.alerts.passwordTooShort")
 			return
 		}
 
@@ -120,10 +122,10 @@
 
 			if (error) throw error
 
-			alert("Password changed successfully!")
+			alert(t("settings.alerts.passwordChanged"))
 			passwordForm.value = { newPassword: "", confirmPassword: "" }
 		} catch (error) {
-			alert("Failed to change password: " + (error as Error).message)
+			alert(t("settings.alerts.passwordChangeFailed", { message: (error as Error).message }))
 		} finally {
 			savingPassword.value = false
 		}
@@ -132,15 +134,11 @@
 	// Delete account
 	const deletingAccount = ref(false)
 	const deleteAccount = async () => {
-		if (
-			!confirm(
-				"Are you sure you want to delete your account? This action cannot be undone.",
-			)
-		) {
+		if (!confirm(t("settings.alerts.deleteConfirm1"))) {
 			return
 		}
 
-		if (!confirm("This will delete all your data. Are you REALLY sure?")) {
+		if (!confirm(t("settings.alerts.deleteConfirm2"))) {
 			return
 		}
 
@@ -149,12 +147,10 @@
 		try {
 			const { error } = await supabase.auth.signOut()
 			if (error) throw error
-			alert(
-				"Please contact support to delete your account. You have been signed out.",
-			)
+			alert(t("settings.alerts.contactSupport"))
 			await navigateTo("/")
 		} catch (error) {
-			alert("Failed to sign out: " + (error as Error).message)
+			alert(t("settings.alerts.signOutFailed", { message: (error as Error).message }))
 			deletingAccount.value = false
 		}
 	}
@@ -187,7 +183,7 @@
 	}
 
 	const formatDate = (dateString: string) => {
-		return new Date(dateString).toLocaleDateString("en-US", {
+		return new Date(dateString).toLocaleDateString(intlLocale.value, {
 			year: "numeric",
 			month: "long",
 			day: "numeric",
@@ -202,7 +198,7 @@
 <template>
 	<UDashboardPanel>
 		<template #header>
-			<UDashboardNavbar title="Settings">
+			<UDashboardNavbar :title="t('settings.title')">
 				<template #leading>
 					<UDashboardSidebarCollapse />
 				</template>
@@ -214,9 +210,9 @@
 				<div class="max-w-3xl mx-auto">
 					<!-- Page Header -->
 					<div class="mb-6">
-						<h1 class="text-2xl font-bold">Settings</h1>
+						<h1 class="text-2xl font-bold">{{ t('settings.title') }}</h1>
 						<p class="text-sm text-gray-500 mt-1">
-							Manage your account preferences
+							{{ t('settings.subtitle') }}
 						</p>
 					</div>
 
@@ -231,7 +227,7 @@
 									'border-primary-500 text-primary-600'
 								:	'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
 							">
-							Profile
+							{{ t('settings.tabs.profile') }}
 						</button>
 						<button
 							@click="activeTab = 'security'"
@@ -241,7 +237,7 @@
 									'border-primary-500 text-primary-600'
 								:	'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
 							">
-							Security
+							{{ t('settings.tabs.security') }}
 						</button>
 						<button
 							@click="activeTab = 'groups'"
@@ -251,7 +247,7 @@
 									'border-primary-500 text-primary-600'
 								:	'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
 							">
-							Groups
+							{{ t('settings.tabs.groups') }}
 						</button>
 					</div>
 
@@ -261,7 +257,7 @@
 						class="space-y-6">
 						<UCard>
 							<template #header>
-								<h2 class="text-base font-semibold">Profile Information</h2>
+								<h2 class="text-base font-semibold">{{ t('settings.profileInfo') }}</h2>
 							</template>
 
 							<div class="space-y-4">
@@ -272,24 +268,24 @@
 									<div class="flex-1 space-y-4">
 										<div>
 											<label class="block text-sm font-medium mb-1.5"
-												>Email</label
+												>{{ t('settings.email') }}</label
 											>
 											<UInput
 												:modelValue="user?.email"
 												disabled
 												readonly />
 											<p class="text-xs text-gray-500 mt-1">
-												Email cannot be changed
+												{{ t('settings.emailReadonly') }}
 											</p>
 										</div>
 
 										<div>
 											<label class="block text-sm font-medium mb-1.5"
-												>Full Name</label
+												>{{ t('settings.fullName') }}</label
 											>
 											<UInput
 												v-model="profileForm.full_name"
-												placeholder="Enter your name" />
+												:placeholder="t('settings.fullNamePlaceholder')" />
 										</div>
 									</div>
 								</div>
@@ -298,12 +294,12 @@
 							<template #footer>
 								<div class="flex items-center justify-between">
 									<div class="text-xs text-gray-500">
-										User ID: {{ user?.id?.slice(0, 8) }}...
+										{{ t('settings.userId', { id: user?.id?.slice(0, 8) }) }}
 									</div>
 									<UButton
 										:loading="savingProfile"
 										@click="saveProfile">
-										Save Changes
+										{{ t('settings.saveChanges') }}
 									</UButton>
 								</div>
 							</template>
@@ -311,20 +307,20 @@
 
 						<UCard>
 							<template #header>
-								<h2 class="text-base font-semibold">Account Details</h2>
+								<h2 class="text-base font-semibold">{{ t('settings.accountDetails') }}</h2>
 							</template>
 
 							<div class="grid grid-cols-2 gap-4">
 								<div>
-									<p class="text-xs text-gray-500 mb-1">Member Since</p>
+									<p class="text-xs text-gray-500 mb-1">{{ t('settings.memberSince') }}</p>
 									<p class="text-sm font-medium">
-										{{ user?.created_at ? formatDate(user.created_at) : "N/A" }}
+										{{ user?.created_at ? formatDate(user.created_at) : t('common.na') }}
 									</p>
 								</div>
 								<div>
-									<p class="text-xs text-gray-500 mb-1">Highest Role</p>
+									<p class="text-xs text-gray-500 mb-1">{{ t('settings.highestRole') }}</p>
 									<p class="text-sm font-medium capitalize">
-										{{ getHighestRole() || "None" }}
+										{{ getHighestRole() || t('common.none') }}
 									</p>
 								</div>
 							</div>
@@ -338,9 +334,9 @@
 						<UCard>
 							<template #header>
 								<div>
-									<h2 class="text-base font-semibold">Change Password</h2>
+									<h2 class="text-base font-semibold">{{ t('settings.changePassword') }}</h2>
 									<p class="text-xs text-gray-500 mt-1">
-										Update your account password
+										{{ t('settings.changePasswordSubtitle') }}
 									</p>
 								</div>
 							</template>
@@ -348,22 +344,22 @@
 							<div class="space-y-4">
 								<div>
 									<label class="block text-sm font-medium mb-1.5"
-										>New Password</label
+										>{{ t('settings.newPassword') }}</label
 									>
 									<UInput
 										v-model="passwordForm.newPassword"
 										type="password"
-										placeholder="Enter new password" />
+										:placeholder="t('settings.newPasswordPlaceholder')" />
 								</div>
 
 								<div>
 									<label class="block text-sm font-medium mb-1.5"
-										>Confirm Password</label
+										>{{ t('settings.confirmPassword') }}</label
 									>
 									<UInput
 										v-model="passwordForm.confirmPassword"
 										type="password"
-										placeholder="Confirm new password"
+										:placeholder="t('settings.confirmPasswordPlaceholder')"
 										@keyup.enter="changePassword" />
 								</div>
 
@@ -382,7 +378,7 @@
 										:disabled="
 											!passwordForm.newPassword || !passwordForm.confirmPassword
 										">
-										Update Password
+										{{ t('settings.updatePassword') }}
 									</UButton>
 								</div>
 							</template>
@@ -393,16 +389,15 @@
 								<div>
 									<h2
 										class="text-base font-semibold text-red-600 dark:text-red-400">
-										Danger Zone
+										{{ t('settings.dangerZone') }}
 									</h2>
-									<p class="text-xs text-gray-500 mt-1">Irreversible actions</p>
+									<p class="text-xs text-gray-500 mt-1">{{ t('settings.irreversible') }}</p>
 								</div>
 							</template>
 
 							<div class="space-y-4">
 								<p class="text-sm text-gray-600 dark:text-gray-400">
-									Once you delete your account, there is no going back. All your
-									data will be permanently removed.
+									{{ t('settings.deleteWarning') }}
 								</p>
 							</div>
 
@@ -413,7 +408,7 @@
 										color="error"
 										variant="outline"
 										@click="deleteAccount">
-										Delete Account
+										{{ t('settings.deleteAccount') }}
 									</UButton>
 								</div>
 							</template>
@@ -427,12 +422,9 @@
 						<UCard>
 							<template #header>
 								<div>
-									<h2 class="text-base font-semibold">Your Groups</h2>
+									<h2 class="text-base font-semibold">{{ t('settings.yourGroups') }}</h2>
 									<p class="text-xs text-gray-500 mt-1">
-										{{ userMemberships.length }} group{{
-											userMemberships.length !== 1 ? "s" : ""
-										}}
-										you're a member of
+										{{ t('settings.memberOfGroups', { count: userMemberships.length }) }}
 									</p>
 								</div>
 							</template>
@@ -440,12 +432,12 @@
 							<div
 								v-if="membershipsLoading"
 								class="text-center py-8 text-gray-500">
-								Loading...
+								{{ t('common.loading') }}
 							</div>
 							<div
 								v-else-if="userMemberships.length === 0"
 								class="text-center py-8 text-gray-500">
-								You are not a member of any groups yet.
+								{{ t('settings.notMemberOfGroups') }}
 							</div>
 							<div
 								v-else
@@ -468,10 +460,10 @@
 												<UBadge
 													:color="getGroupTypeColor(group.type)"
 													size="xs">
-													{{ group.type }}
+													{{ t(`groupType.${group.type}`) }}
 												</UBadge>
 												<span class="text-xs text-gray-500"
-													>ID: {{ group.id.slice(0, 8) }}...</span
+													>{{ t('settings.groupId', { id: group.id.slice(0, 8) }) }}</span
 												>
 											</div>
 										</div>
@@ -479,7 +471,7 @@
 									<UBadge
 										:color="getRoleColor(group.role)"
 										variant="subtle">
-										{{ group.role }}
+										{{ t(`role.${group.role}`) }}
 									</UBadge>
 								</div>
 							</div>

@@ -7,6 +7,7 @@ const props = defineProps<{
   autoOpen?: boolean
 }>()
 
+const { t } = useI18n()
 const url = ref('')
 const isOpen = ref(props.autoOpen || false)
 
@@ -30,11 +31,11 @@ const removeLink = () => {
 <template>
   <UPopover v-model:open="isOpen">
     <UButton color="neutral" variant="ghost" icon="i-lucide-link" size="sm"
-      :class="{ 'bg-gray-100 dark:bg-gray-800': editor.isActive('link') }" title="Dodaj link" />
+      :class="{ 'bg-gray-100 dark:bg-gray-800': editor.isActive('link') }" :title="t('editor.addLink')" />
 
     <template #content>
       <div class="p-2 flex items-center gap-2 w-64">
-        <UInput v-model="url" placeholder="Wklej link..." class="flex-1" size="sm" @keydown.enter="setLink" />
+        <UInput v-model="url" :placeholder="t('editor.pasteLink')" class="flex-1" size="sm" @keydown.enter="setLink" />
         <UButton color="primary" size="sm" icon="i-lucide-check" @click="setLink" />
         <UButton v-if="editor.isActive('link')" color="error" variant="soft" size="sm" icon="i-lucide-trash"
           @click="removeLink" />

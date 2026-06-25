@@ -5,6 +5,7 @@ definePageMeta({
     layout: 'dashboard'
 })
 
+const { t } = useI18n()
 const { notes, fetchNotes } = useNotes()
 
 const { pending: loading, error } = await useAsyncData('summary-notes-list', async () => {
@@ -15,30 +16,29 @@ const { pending: loading, error } = await useAsyncData('summary-notes-list', asy
 
 <template>
     <UDashboardPanel>
-        <UDashboardNavbar title="Twoje Streszczenia" />
+        <UDashboardNavbar :title="t('summaryList.navTitle')" />
 
         <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-8">
             <header>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Generator Streszczeń AI</h2>
-                <p class="text-gray-500 mt-1">Wybierz jedną ze swoich notatek, aby wygenerować jej zwięzłe
-                    streszczenie lub przejrzeć wcześniej zapisane.</p>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('summaryList.heading') }}</h2>
+                <p class="text-gray-500 mt-1">{{ t('summaryList.description') }}</p>
             </header>
 
             <div v-if="loading" class="flex flex-col items-center justify-center py-12 space-y-4">
                 <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-primary" />
-                <p class="text-gray-500">Pobieranie Twoich notatek...</p>
+                <p class="text-gray-500">{{ t('summaryList.fetching') }}</p>
             </div>
 
             <UAlert v-else-if="error" color="error" variant="soft" icon="i-heroicons-exclamation-circle"
-                title="Wystąpił problem" description="Nie udało się załadować notatek. Spróbuj odświeżyć stronę." />
+                :title="t('summaryList.errorTitle')" :description="t('summaryList.errorDescription')" />
 
             <div v-else-if="notes.length === 0"
                 class="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
                 <UIcon name="i-heroicons-document-minus" class="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                <h3 class="text-lg font-medium text-gray-900 dark:text-white">Brak notatek</h3>
-                <p class="text-gray-500">Dodaj najpierw jakąś notatkę, aby móc wygenerować z niej streszczenie.</p>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">{{ t('summaryList.empty') }}</h3>
+                <p class="text-gray-500">{{ t('summaryList.emptyHint') }}</p>
                 <UButton to="/dashboard/notes" color="primary" variant="ghost" class="mt-4">
-                    Przejdź do notatek
+                    {{ t('summaryList.goToNotes') }}
                 </UButton>
             </div>
 
@@ -52,16 +52,16 @@ const { pending: loading, error } = await useAsyncData('summary-notes-list', asy
                                 class="w-6 h-6 text-gray-400 group-hover:text-primary" />
                         </div>
                         <div>
-                            <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ note.title || 'Bez tytułu' }}
+                            <h3 class="font-bold text-lg text-gray-900 dark:text-white">{{ note.title || t('summaryList.untitled') }}
                             </h3>
-                            <p class="text-sm text-gray-500">Kliknij przycisk, aby zarządzać streszczeniami tej treści.
+                            <p class="text-sm text-gray-500">{{ t('summaryList.cardHint') }}
                             </p>
                         </div>
                     </div>
 
                     <UButton color="primary" variant="soft" :to="`/dashboard/summary/${note.id}`"
                         icon="i-heroicons-sparkles" size="lg" class="w-full sm:w-auto">
-                        Generuj / Przeglądaj Streszczenie
+                        {{ t('summaryList.action') }}
                     </UButton>
                 </div>
             </div>
