@@ -7,7 +7,10 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:nonfunctional": "vitest run tests/nonfunctional"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",
@@ -42,6 +45,8 @@
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
     "@vue/language-core": "^3.2.7",
+    "dotenv": "^17.4.2",
+    "vitest": "^4.1.9",
     "vue-tsc": "^3.2.7"
   }
 }
